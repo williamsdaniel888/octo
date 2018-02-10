@@ -41,7 +41,7 @@ flexible op2 - op1, places result in dest register
 `RSB{S}{cond} dest, op1, op2 {,SHIFT_OP #expression}`
 
 ## RSC
-flexible op2 - op1 + C - 1, places result in dest register, update Carry flag
+flexible op2 - op1 + C - 1, places result in dest register
 `RSC{S}{cond} dest, op1, op2 {,SHIFT_OP #expression}`
 
 ## CMP
