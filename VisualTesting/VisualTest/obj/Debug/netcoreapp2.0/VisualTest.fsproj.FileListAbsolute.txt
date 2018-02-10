@@ -1,0 +1,1 @@
+C:\src17\VisualTesting\VisualTest\obj\Debug\netcoreapp2.0\VisualTest.fsprojResolveAssemblyReference.cache
