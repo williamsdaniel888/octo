@@ -1,4 +1,4 @@
-module Memory =
+module Memory
 
     open CommonLex
 

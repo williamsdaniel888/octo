@@ -102,7 +102,7 @@ module CommonLex
 
     /// function used to change PInstr field of a Result<Parse<'INS>,'E>
     /// the output has this field mapped with fMap
-    /// or if Error has this value chnaged by fMapE
+    /// or if Error has this value changed by fMapE
     let pResultInstrMap fMap fMapE paRes =
         match paRes with
         | Ok ({PInstr=ins} as pr) -> 

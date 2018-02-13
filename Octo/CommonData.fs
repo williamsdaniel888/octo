@@ -74,7 +74,7 @@ module CommonData
     /// either way multiply/divide by 4 will cause problems!
     /// document this well and be consistent.
 
-    ///For individual code: chosen to represent real address.
+    ///For individual project: chosen to be real address
     type WAddr = | WA of uint32
 
     /// type to represent memory

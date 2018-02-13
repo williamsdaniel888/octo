@@ -1,4 +1,4 @@
-module DP =
+module DP
     open CommonData
     open CommonLex
 
@@ -10,8 +10,7 @@ module DP =
     /// parse error (dummy, but will do)
     type ErrInstr = string
 
-    /// sample specification for set of instructions
-    /// very incomplete!
+    /// specification for ARITH set of instructions
     let dPSpec = {
         InstrC = DP
         Roots = ["ADD";"ADC";"SUB";"SBC";"RSB";"RSC";"CMP";"CMN"]
