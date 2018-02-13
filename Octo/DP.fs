@@ -1,11 +1,12 @@
-module DP
+namespace Octo
+module DP =
     open CommonData
     open CommonLex
 
     // change these types as required
 
     /// instruction (dummy: must change)
-    type Instr =  {DPDummy: Unit}
+    type Instr =  InstrClass //{DPDummy: Unit}
 
     /// parse error (dummy, but will do)
     type ErrInstr = string
@@ -28,7 +29,7 @@ module DP
     let parse (ls: LineData) : Result<Parse<Instr>,string> option =
         let parse' (instrC, (root,suffix,pCond)) =
 
-            let (WA la) = ls.LoadAddr // address this instruction is loaded into memory
+            let (WA la) = ls.LoadAddr // address this instruction is loaded into memory (from?)
             // this does the real work of parsing
             // dummy return for now
             Ok { 
@@ -36,7 +37,7 @@ module DP
                 // This is the instruction determined from opcode, suffix and parsing
                 // the operands. Not done in the sample.
                 // Note the record type returned must be written by the module author.
-                PInstr={DPDummy=()}; 
+                PInstr = {DPDummy=()}; //CHANGE THIS TO REFER TO THE INPUT
 
 
                 // This is normally the line label as contained in

@@ -1,14 +1,13 @@
-//////////////////////////////////////////////////////////////////////////////////////////
-//                                  INITPROJECTLEXER                                    //
-//////////////////////////////////////////////////////////////////////////////////////////
-
 ////////////////////////////////////////////////////////////////////////////////////
 //      Code defined at top level after the instruction processing modules
 ////////////////////////////////////////////////////////////////////////////////////
-module CommonTop
-
-    open CommonLex
+namespace Octo
+module CommonTop =
+    
     open CommonData
+    open CommonLex
+    open DP
+    open Memory
 
     /// allows different modules to return different instruction types
     type Instr =
@@ -83,8 +82,8 @@ module CommonTop
         |> Array.toList
         |> matchLine
     
-
-open CommonTop
-open CommonData
-/// test the initProjectLexer code
-let test = parseLine None (WA 0u)
+module tester =
+    open CommonTop
+    open CommonData
+    /// test the initProjectLexer code
+    let test = parseLine None (WA 0u)

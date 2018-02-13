@@ -56,7 +56,11 @@
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
-    <Compile Include="Program.fs" />
+    <Compile Include="CommonData.fs" />
+    <Compile Include="CommonLex.fs" />
+    <Compile Include="DP.fs" />
+    <Compile Include="Memory.fs" />
+    <Compile Include="CommonTop.fs" />
     <None Include="App.config" />
     <Content Include="packages.config" />
   </ItemGroup>

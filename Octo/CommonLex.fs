@@ -1,9 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////////////////////
 //                     Common code for Instruction Definition and Parsing
 ///////////////////////////////////////////////////////////////////////////////////////////
-
-module CommonLex
-
+namespace Octo
+module CommonLex =
     open CommonData
     
     /// ARM execution conditions
@@ -55,7 +54,7 @@ module CommonLex
 
     /// data given to instruction-specific parse function
     type LineData = {
-        /// memory address this instruction is loaded. Must be word address
+        /// memory address this instruction is loaded from? Must be word address
         LoadAddr: WAddr 
         /// name of label defined on this line, if one exists
         Label: string option 

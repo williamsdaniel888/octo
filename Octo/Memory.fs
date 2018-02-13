@@ -1,4 +1,5 @@
-module Memory
+namespace Octo
+module Memory =
 
     open CommonLex
 
