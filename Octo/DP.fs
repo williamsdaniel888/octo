@@ -10,7 +10,8 @@ module DP =
     /// parse error (dummy, but will do)
     type ErrInstr = string
 
-    /// specification for ARITH set of instructions
+    /// sample specification for set of instructions
+    /// very incomplete!
     let dPSpec = {
         InstrC = DP
         Roots = ["ADD";"ADC";"SUB";"SBC";"RSB";"RSC";"CMP";"CMN"]

@@ -1,4 +1,4 @@
-module CommonData =
+module CommonData
     //////////////////////////////////////////////////////////////////////////////////////
     //                   Common types and code used by all modules
     //////////////////////////////////////////////////////////////////////////////////////
@@ -74,7 +74,7 @@ module CommonData =
     /// either way multiply/divide by 4 will cause problems!
     /// document this well and be consistent.
 
-    ///For individual project: chosen to be real address
+    ///For individual code: chosen to represent real address.
     type WAddr = | WA of uint32
 
     /// type to represent memory
