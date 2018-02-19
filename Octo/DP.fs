@@ -3,10 +3,11 @@ module DP =
     open CommonData
     open CommonLex
 
-    // change these types as required
-
     /// instruction
-    type Instr =  InstrClass //{DPDummy: Unit}
+    type ArithParameters = {dest: uint32 option; op1: uint32; op2: uint32}
+    type Instr = Ari of ArithParameters
+
+    //InstrClass //{DPDummy: Unit}
 
     /// parse error (dummy, but will do)
     type ErrInstr = string
