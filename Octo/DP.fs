@@ -5,7 +5,7 @@ module DP =
 
     // change these types as required
 
-    /// instruction (dummy: must change)
+    /// instruction
     type Instr =  InstrClass //{DPDummy: Unit}
 
     /// parse error (dummy, but will do)

@@ -20,6 +20,11 @@ Here \{_\} stands for an optional parameter:
 - **cond** condition
 - **SHIFT_OP \#expression** extension to implement flexible op2
 
+- **N** negative
+- **Z** zero
+- **C** carry
+- **V** signed overflow
+
 ## ADD
 op1 + flexible op2, places result in dest register
 `ADD{S}{cond} dest, op1, op2 {,SHIFT_OP #expression}`
