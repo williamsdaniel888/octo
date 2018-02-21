@@ -114,46 +114,104 @@ let (cpuData: DataPath) = {Fl = defaultFlags; Regs = defaultRegs}
 
 ///TOKENIZER
 
-let f = "R0R1R2LSR#5"
-let removeComment (txt:string) =
-    txt.Split(';')
-    |> function 
-        | [|x|] -> x 
-        | [||] -> "" 
-        | lineWithComment -> lineWithComment.[0]
-let splitIntoWords ( line:string ) =
-        line.Split( ([||] : char array), 
-            System.StringSplitOptions.RemoveEmptyEntries)
-f |> removeComment |> splitIntoWords |> Array.toList |> String.concat ""
+type ErrInstr = string
+//let h = "R0,R1,R0;43"
+//let removeComment (txt:string) =
+//    txt.Split(';')
+//    |> function 
+//        | [|x|] -> x 
+//        | [||] -> "" 
+//        | lineWithComment -> lineWithComment.[0]
+//let splitIntoWords ( line:string ) =
+//        line.Split( ([||] : char array), 
+//            System.StringSplitOptions.RemoveEmptyEntries)
+//h |> removeComment |> splitIntoWords |> Array.toList |> String.concat ""
 
-type Token = Dest of RName | Top1 of RName | Top2 of Op2
+type Token = Dest of RName| Op1' of RName | Op2' of Op2
 type LexData = {Txt: string; Args: string list}
 
-open System.Text.RegularExpressions
-let (|FirstRegexGroup|_|) pattern input =
-    let m = Regex.Match(input,pattern)
-    if (m.Success) then Some m.Groups.[0].Value else None  
-
-let nextToken (state:LexData) = 
-    match state.Txt with
-    | FirstRegexGroup "R[0-9]{1,2}([A-Z]{3}(\#\-?[0-9]{1,3})?(R[0-9]{1,2})?)?" host ->
-        let mChars = String.length host
-        if mChars = 0 then 
-            failwithf "Unexpected 0 character match '%s'" state.Txt
-        let state' = {state with Txt = state.Txt.[mChars..]}
-        Some (host,state')
-    | FirstRegexGroup "\#\-?[0-9]{1,3}" host ->
-        let mChars = String.length host
-        if mChars = 0 then 
-            failwithf "Unexpected 0 character match '%s'" state.Txt
-        let state' = {state with Txt = state.Txt.[mChars..]}
-        Some (host,state')
-    | _ -> None
+//Resolve shifts by negative integers and positive integers >31 - VisUAL ignores such shifts?
+let (|Reg'|_|) (str:string) = if str.StartsWith("R") then regNames.TryFind str else None
+let (|Nmr'|_|) (str:string) = if str.StartsWith("#") then Some (int str.[1..]) else None
+let (|ASR'|_|) (str:string) = 
+    str.StartsWith("ASR") |> function
+    |true -> 
+        str.[3..] |> function
+            |Nmr' y -> Some (NumericValue y)
+            |Reg' y -> Some (RValue y)
+            |_ -> None
+    |false -> None
+let (|LSR'|_|) (str:string) = 
+    str.StartsWith("LSR") |> function
+    |true -> 
+        str.[3..] |> function
+            |Nmr' y -> Some (NumericValue y)
+            |Reg' y -> Some (RValue y)
+            |_ -> None
+    |false -> None
+let (|LSL'|_|) (str:string) = 
+    str.StartsWith("LSL") |> function
+    |true -> 
+        str.[3..] |> function
+            |Nmr' y -> Some (NumericValue y)
+            |Reg' y -> Some (RValue y)
+            |_ -> None
+    |false -> None
+let (|ROR'|_|) (str:string) = 
+    str.StartsWith("ROR") |> function
+    |true -> 
+        str.[3..] |> function
+            |Nmr' y -> Some (NumericValue y)
+            |Reg' y -> Some (RValue y)
+            |_ -> None
+    |false -> None
+let (|RRX'|_|) (str:string) = 
+    str.StartsWith("RRX") |> function
+    |true -> Some RRX //WATCH OUT FOR THIS CAUSING TROUBLE
+    |false -> None
+    
+let chunker (str:string) = //Convert to Result monad
+    str.Split(',')
+    |> function
+        |[|q1;q2|] -> 
+            let s1 = q1 |> function
+                |Reg' x -> Op1' x
+                |_ -> failwithf "Invalid op1" 
+            let s2 = q2 |> function
+                |Reg' x -> Op2' (Register x)
+                |Nmr' x -> Op2' (LiteralData (uint32 x)) //Immediate is stored as uint32 - must resolve negative immediates w implication for opcode
+                |_ -> failwithf "Invalid op2" 
+            [s1; s2] //|> Ok
+        |[|q0;q1;q2|] ->
+            let s0 = q0 |> function
+                |Reg' x -> Dest x
+                |_ -> failwithf "Invalid dest" 
+            let s1 = q1 |> function
+                |Reg' x -> Op1' x
+                |_ -> failwithf "Invalid op1" 
+            let s2 = q2 |> function
+                |Reg' x -> Op2' (Register x)
+                |Nmr' x -> Op2' (LiteralData (uint32 x)) //Immediate is stored as uint32 - must resolve negative immediates w implication for opcode
+                |_ -> failwithf "Invalid op2" 
+            [s0; s1; s2] //|> Ok
+        |[|q0;q1;q2;q3|] ->  
+            let s0 = q0 |> function
+                |Reg' x -> Dest x
+                |_ -> failwithf "Invalid dest" 
+            let s1 = q1 |> function
+                |Reg' x -> Op1' x
+                |_ -> failwithf "Invalid op1" 
+            let s2 = 
+                let ro = q2 |> function
+                    |Reg' x -> x
+                    |_ -> failwithf "Invalid op2 base register" 
+                q3 |> function
+                    |ASR' x -> Op2' (ASR(ro,x))
+                    |LSR' x -> Op2' (LSR(ro,x))
+                    |LSL' x -> Op2' (LSL(ro,x))
+                    |ROR' x -> Op2' (ROR(ro,x))
+                    |RRX' _ -> Op2' (RRX ro)
+                    |_ -> failwithf "Invalid op2 shift instruction" 
+            [s0; s1; s2] //|> Ok
+        |_ -> failwithf "Invalid input"
         
-let tokenize str =
-    let rec tokenize' (st:LexData) =
-        match nextToken st with
-        |None -> st
-        |Some (nt, st') -> tokenize' {st' with Args = List.append (st'.Args) [nt]}
-    tokenize' {Txt=str; Args=[]} |> function |x -> x.Args
-tokenize "R0R1R2RRX#-334"
