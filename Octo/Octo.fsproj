@@ -57,6 +57,7 @@
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="CommonData.fs" />
+    <None Include="tester.fsx" />
     <Compile Include="CommonLex.fs" />
     <Compile Include="DP.fs" />
     <Compile Include="Memory.fs" />

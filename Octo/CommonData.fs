@@ -73,7 +73,6 @@ module CommonData =
     /// or does it contain the word number (real address divided by 4)
     /// either way multiply/divide by 4 will cause problems!
     /// document this well and be consistent.
-
     ///For individual project: chosen to be real address
     type WAddr = | WA of uint32
 
