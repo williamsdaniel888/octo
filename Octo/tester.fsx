@@ -195,25 +195,15 @@ let pResultInstrMap fMap fMapE paRes =
         }
     | Error e -> Error (fMapE e)
 /// FLEXIBLE OP2 TOOLS
-let allowedLiterals = 
-    [0..2..30] 
-    |> List.allPairs [0u..255u] 
-    |> List.map (fun (lit,n) -> (lit >>> n) + (lit <<< 32-n))
-    |> Set.ofList
-
-let makeLiteral (lit: uint32) = 
-    Set.contains lit allowedLiterals
-    |> function
-        |true -> Some lit
-        |false -> None
-
-type Literal = uint32 //{K: uint32; R: int} //// literal value = (K % 256) rotated right by (R &&& 0xF)*2. 
+type ErrInstr = string ////Check usefulness of this
+type RotConstant = {K: uint32; R: int} // literal value = (K % 256) rotated right by (R &&& 0xF)*2.
+type Literal = ImmConstant of uint32 |RC of RotConstant //allows other values permitted in ARM documentation
 type Reg = RName
 type SVal = NumericValue of int | RValue of Reg
 type Shift = Reg*SVal
-    
+
 type Op2 = 
-    | LiteralData of Literal //// remove duplication of uint32 definition if K,R not needed
+    | LiteralData of Literal
     | Register of Reg
     | LSL of Shift
     | ASR of Shift
@@ -221,25 +211,86 @@ type Op2 =
     | ROR of Shift
     | RRX of Reg
 
-let doShift (ro: Shift) (cpuData: DataPath<'INS>) bitOp =
-    let rOp2 = fst ro |> fun a -> Map.find a cpuData.Regs
-    let sv = snd ro
-    let f = fun a b -> bitOp a b
-    match sv with 
-    |NumericValue s -> LiteralData(uint32(  f rOp2 s))
-    |RValue r -> 
-        int(Map.find r cpuData.Regs)%32
-        |> fun newShift -> LiteralData(uint32(f rOp2 newShift))
+//Map of literals created by rotating for all possible values of {K,R}
+let allowedLiterals = 
+    [0..2..30] 
+    |> List.allPairs [0u..255u] 
+    |> List.map (fun (lit,n) -> ((lit >>> n) + (lit <<< 32-n)),(lit,n))
+    |> Map.ofList
 
+//Active patterns to test whether an immediate is valid
+//format: 0x00XY00XY
+let (|ImmP1|_|) (i:uint32) =    
+    let x1 = i.ToString("X8").[2..2]
+    let y1 = i.ToString("X8").[3..3]
+    if i.ToString("X8") = ("00"+x1+y1+"00"+x1+y1) then Some i else None
+//format: 0xXY00XY00
+let (|ImmP2|_|) (i:uint32) =    
+    let x2 = i.ToString("X8").[0..0]
+    let y2 = i.ToString("X8").[1..1]
+    if i.ToString("X8") = (x2+y2+"00"+x2+y2+"00") then Some i else None
+//format: 0xXYXYXYXY
+let (|ImmP3|_|) (i:uint32) =    
+    let x1 = i.ToString("X8").[2..2]
+    let y1 = i.ToString("X8").[3..3]
+    if i.ToString("X8") = (x1+y1+x1+y1+x1+y1+x1+y1) then Some i else None
+
+//verifies whether a uint32 is a valid immediate
+let checkOp2Literal (imm: uint32) = 
+    Map.containsKey imm allowedLiterals
+    |> function
+        |true -> 
+            allowedLiterals.[imm]
+            |> fun a -> {K = fst a; R = snd a} |> RC |> LiteralData |> Ok
+        |false -> //Follows ARM specification - not supported by VisUAL
+            match imm with
+                |ImmP1 imm -> imm |> ImmConstant |> LiteralData |> Ok
+                |ImmP2 imm -> imm |> ImmConstant |> LiteralData |> Ok
+                |ImmP3 imm -> imm |> ImmConstant |> LiteralData |> Ok
+                |_-> Error "Invalid literal, must be of formats {N ROR 2M, 0<=N<=255, 0<=M<=15}, 0x00XY00XY, 0xXY00XY00 or 0xXYXYXYXY"
+//verifies whether a register is a valid argument for op2
+let checkOp2Register (r:RName) =
+    if (r.RegNum>=0 && r.RegNum<=12) || r.RegNum=14 
+        then Ok r
+        else Error "Invalid register value, must be R0-R12 or R14"
+
+//Check validity of input Shift, perform shift on register if possible, convert to Result
+let doShift (ro: Shift) (cpuData: DataPath<'INS>) bitOp =
+    let rvalue = fst ro |> fun a -> Map.find a cpuData.Regs
+    let svalue = snd ro
+    match svalue with 
+    |NumericValue s -> 
+        if s>=0 && s<=31 
+            then
+                bitOp rvalue (s%32)
+                |> checkOp2Literal
+            //Return an error message if s is out of bounds
+            //Diverges from VisUAL behavior, follows TC's Slack guidance
+            else Error "Invalid shift, must be between 0<=s<=31" 
+    |RValue r ->
+        //Calculate unsigned register contents modulo 32, perform shift
+        //Diverges from VisUAL behavior, follows Tick 3 guidance
+        checkOp2Register r
+        |> Result.map (fun re ->
+            int((Map.find re cpuData.Regs) &&& 0x1Fu) 
+            |> bitOp rvalue )
+        |> Result.bind checkOp2Literal
+        
 let makeRRX (rOp2:Reg) (cpuData:DataPath<'INS>) =
     let newMSB = if cpuData.Fl.C then 0x80000000u else 0x00000000u
     Map.find rOp2 cpuData.Regs
-    |> fun reg -> LiteralData(uint32( newMSB + (reg>>>1)))    
+    |> fun reg -> checkOp2Literal( newMSB + (reg>>>1))
 
 let flexOp2 (op2:Op2) (cpuData:DataPath<'INS>) = 
     match op2 with
-    | LiteralData literalData -> LiteralData literalData
-    | Register register -> Register register      
+    | LiteralData literalData -> 
+        match literalData with
+        |ImmConstant ld -> 
+            checkOp2Literal ld 
+        |RC {K=a;R=b} ->  
+            (a >>> b) + (a <<< 32-b)
+            |> checkOp2Literal
+    | Register register -> checkOp2Register register |> Result.map (fun a -> Register a)
     | LSL shift -> doShift shift cpuData (<<<)
     | ASR shift -> doShift shift cpuData (fun a b -> (int a) >>> b |> uint32)
     | LSR shift -> doShift shift cpuData (>>>)
@@ -247,15 +298,15 @@ let flexOp2 (op2:Op2) (cpuData:DataPath<'INS>) =
     | RRX r -> makeRRX r cpuData
 
 //Testing parameters for FlOp2
-//let (defaultFlags: Flags) = {N=false;Z=false;C=false;V=false}
-//let (defaultRegs: Map<RName,uint32>) = Map.map (fun _ (s:string) -> 2u) regStrings
+let (defaultFlags: Flags) = {N=false;Z=false;C=false;V=false}
+let (defaultRegs: Map<RName,uint32>) = Map.map (fun _ (s:string) -> 2u) regStrings
+
 ////let (defaultMM: MachineMemory<'INS>) = 
 //let (cpuData: DataPath<'INS>) = {Fl = defaultFlags; Regs = defaultRegs; MM = defaultMM}
 
 ///TOKENIZER
 type RegParameters = {dest: RName option; op1: RName; op2: Op2}
 type Instr = {ic: InstrClass; rt:string; sf:string; cnd:Condition ;ap: RegParameters}
-type ErrInstr = string ////Check usefulness of this
 type Token = Dest of RName option| Op1' of RName | Op2' of Op2
 let removeComment (txt:string) =
     txt.Split(';')
@@ -315,12 +366,14 @@ let tokenizer (str:string) =     ////Resolve shifts by negative integers and pos
         |[|q0;q1|] ->
             match q0,q1 with
                 |Reg' a, Reg' b -> [Dest None; Op1' a; Op2' (Register b)] |> Ok
-                |Reg' a, Nmr' b -> [Dest None; Op1' a; Op2' (LiteralData (uint32 b))] |> Ok
+                |Reg' a, Nmr' b -> 
+                    checkOp2Literal(uint32(b)) |> Result.map (fun x -> [Dest None; Op1' a; Op2' x])
                 |_ -> Error "Invalid syntax: format must be \"op1, op2\""
         |[|q0;q1;q2|] ->
             match q0,q1,q2 with
                 |Reg' a, Reg' b, Reg' c -> [Dest (Some a); Op1' b; Op2' (Register c)] |> Ok
-                |Reg' a, Reg' b, Nmr' c -> [Dest (Some a); Op1' b; Op2' (LiteralData (uint32 c))] |> Ok
+                |Reg' a, Reg' b, Nmr' c ->
+                    checkOp2Literal(uint32(c)) |> Result.map (fun x-> [Dest (Some a); Op1' b; Op2' x]) 
                 |_ -> Error "Invalid syntax: format must be \"dest, op1, op2\""
         |[|q0;q1;q2;q3|] ->  
             match q0,q1,q2,q3 with
@@ -390,3 +443,4 @@ let p:LineData =
     OpCode = "ADDSNE";
     Operands = "R0,R1,R2k"}
 let qq = p|>parse
+////
