@@ -83,7 +83,7 @@ type DataPath<'INS> = {
     Regs:Map<RName,uint32> // map representing registers. 
                             // Must be correctly initialised
     MM: MachineMemory<'INS> // map showing the contents of all memory
-    }    
+    }   
 /// ARM execution conditions
 type Condition =
 
@@ -194,8 +194,8 @@ let pResultInstrMap fMap fMapE paRes =
         PSize = pr.PSize
         }
     | Error e -> Error (fMapE e)
+
 /// FLEXIBLE OP2 TOOLS
-type ErrInstr = string ////Check usefulness of this
 type RotConstant = {K: uint32; R: int} // literal value = (K % 256) rotated right by (R &&& 0xF)*2.
 type Literal = ImmConstant of uint32 |RC of RotConstant //allows other values permitted in ARM documentation
 type Reg = RName
@@ -210,6 +210,11 @@ type Op2 =
     | LSR of Shift
     | ROR of Shift
     | RRX of Reg
+    //| IMM12 of uint32
+
+type RegParameters = {dest: RName option; op1: RName; op2: Op2}
+type Instr = {ic: InstrClass; rt:string; sf:string; cnd:Condition ;ap: RegParameters}
+type ErrInstr = string ////Check usefulness of this
 
 //Map of literals created by rotating for all possible values of {K,R}
 let allowedLiterals = 
@@ -247,66 +252,33 @@ let checkOp2Literal (imm: uint32) =
                 |ImmP1 imm -> imm |> ImmConstant |> LiteralData |> Ok
                 |ImmP2 imm -> imm |> ImmConstant |> LiteralData |> Ok
                 |ImmP3 imm -> imm |> ImmConstant |> LiteralData |> Ok
-                |_-> Error "Invalid literal, must be of formats {N ROR 2M, 0<=N<=255, 0<=M<=15}, 0x00XY00XY, 0xXY00XY00 or 0xXYXYXYXY"
+                |_-> Error "Invalid literal, must be of formats {N ROR 2M, 0u<=N<=255u, 0<=M<=15}, 0x00XY00XY, 0xXY00XY00 or 0xXYXYXYXY"
+//checkOp2Literal 1u
+//checkOp2Literal 0xffffffffu
+//checkOp2Literal 0x00f100f1u
+//checkOp2Literal 0xf100f100u
+//checkOp2Literal 0xf1f1f1f1u
+//checkOp2Literal 0xfffffffeu
+//checkOp2Literal 0x00f100f0u
+//checkOp2Literal 0xf100f101u
+//checkOp2Literal 0xf1f1f1f0u
+
 //verifies whether a register is a valid argument for op2
 let checkOp2Register (r:RName) =
     if (r.RegNum>=0 && r.RegNum<=12) || r.RegNum=14 
         then Ok r
         else Error "Invalid register value, must be R0-R12 or R14"
+//Map.toList regStrings |> List.map (fun a -> fst a) |> List.map (fun a-> checkOp2Register a) 
 
-//Check validity of input Shift, perform shift on register if possible, convert to Result
-let doShift (ro: Shift) (cpuData: DataPath<'INS>) bitOp =
-    let rvalue = fst ro |> fun a -> Map.find a cpuData.Regs
-    let svalue = snd ro
-    match svalue with 
-    |NumericValue s -> 
-        if s>=0 && s<=31 
-            then
-                bitOp rvalue (s%32)
-                |> checkOp2Literal
-            //Return an error message if s is out of bounds
-            //Diverges from VisUAL behavior, follows TC's Slack guidance
-            else Error "Invalid shift, must be between 0<=s<=31" 
-    |RValue r ->
-        //Calculate unsigned register contents modulo 32, perform shift
-        //Diverges from VisUAL behavior, follows Tick 3 guidance
-        checkOp2Register r
-        |> Result.map (fun re ->
-            int((Map.find re cpuData.Regs) &&& 0x1Fu) 
-            |> bitOp rvalue )
-        |> Result.bind checkOp2Literal
-        
-let makeRRX (rOp2:Reg) (cpuData:DataPath<'INS>) =
-    let newMSB = if cpuData.Fl.C then 0x80000000u else 0x00000000u
-    Map.find rOp2 cpuData.Regs
-    |> fun reg -> checkOp2Literal( newMSB + (reg>>>1))
-
-let flexOp2 (op2:Op2) (cpuData:DataPath<'INS>) = 
-    match op2 with
-    | LiteralData literalData -> 
-        match literalData with
-        |ImmConstant ld -> 
-            checkOp2Literal ld 
-        |RC {K=a;R=b} ->  
-            (a >>> b) + (a <<< 32-b)
-            |> checkOp2Literal
-    | Register register -> checkOp2Register register |> Result.map (fun a -> Register a)
-    | LSL shift -> doShift shift cpuData (<<<)
-    | ASR shift -> doShift shift cpuData (fun a b -> (int a) >>> b |> uint32)
-    | LSR shift -> doShift shift cpuData (>>>)
-    | ROR shift -> doShift shift cpuData (fun a n -> (a >>> n) ||| (a <<< (32-n)))
-    | RRX r -> makeRRX r cpuData
-
-//Testing parameters for FlOp2
-let (defaultFlags: Flags) = {N=false;Z=false;C=false;V=false}
-let (defaultRegs: Map<RName,uint32>) = Map.map (fun _ (s:string) -> 2u) regStrings
-
-////let (defaultMM: MachineMemory<'INS>) = 
-//let (cpuData: DataPath<'INS>) = {Fl = defaultFlags; Regs = defaultRegs; MM = defaultMM}
+//Verify whether input is a valid imm12 - not resolved in VisUAL, present in ARM documentation
+//let (|Imm12'|_|) (i:uint32) =    
+//    if i>=0u && i<=4095u then Some i else None
+//let checkImm12 (r: uint32) =
+//    match r with
+//        |Imm12' a -> Ok a
+//        |_-> Error "Invalid input, must be imm12 value"
 
 ///TOKENIZER
-type RegParameters = {dest: RName option; op1: RName; op2: Op2}
-type Instr = {ic: InstrClass; rt:string; sf:string; cnd:Condition ;ap: RegParameters}
 type Token = Dest of RName option| Op1' of RName | Op2' of Op2
 let removeComment (txt:string) =
     txt.Split(';')
@@ -435,12 +407,245 @@ let parse (ls: LineData) : Result<Parse<Instr>,string> option =
             Map.tryFind ls.OpCode opCodes // lookup opcode to see if it is known
             |> Option.map parse' // if unknown keep none, if known parse it.
         |Error x -> Some (Error x)
-////Create dummy LineData and test the above.
-let p:LineData = 
-    {LoadAddr = WA 0u;
-    Label = None;
-    SymTab = None;
-    OpCode = "ADDSNE";
-    Operands = "R0,R1,R2k"}
-let qq = p|>parse
-////
+//let p = 
+//    {LoadAddr = WA 0u;
+//    Label = None;
+//    SymTab = None;
+//    OpCode = "ADDSNE";
+//    Operands = "R0,R1,R2,LSR#1"} |> parse
+
+//Flexible op2 evaluation tools
+
+//Checks validity of input Shift, performs shift on register if possible
+let doShift (ro: Shift) (cpuData: DataPath<Instr>) bitOp =
+    let rvalue = fst ro |> fun a -> Map.find a cpuData.Regs
+    let svalue = snd ro
+    match svalue with 
+    |NumericValue s -> 
+        if s>=0 && s<=31 
+            then
+                bitOp rvalue (s%32)
+                |> checkOp2Literal
+            //Return an error message if s is out of bounds
+            //Diverges from VisUAL behavior, follows TC's Slack guidance
+            else Error "Invalid shift, must be between 0<=s<=31" 
+    |RValue r ->
+        //Calculate unsigned register contents modulo 32, then perform shift
+        //Diverges from VisUAL behavior, follows Tick 3 guidance
+        checkOp2Register r
+        |> Result.map (fun re ->
+            int((Map.find re cpuData.Regs) &&& 0x1Fu) 
+            |> bitOp rvalue )
+        |> Result.bind checkOp2Literal
+        
+//Perform RRX on a register's contents
+let makeRRX (rv:Reg) (cpuData:DataPath<Instr>) =
+    let newMSB = if cpuData.Fl.C then 0x80000000u else 0x00000000u
+    Map.find rv cpuData.Regs
+    |> fun reg -> checkOp2Literal( newMSB + (reg>>>1))
+
+//Evaluates a flexible op2 value, returns uint32
+let flexOp2 (op2:Op2) (cpuData:DataPath<Instr>) = 
+    match op2 with
+    | LiteralData literalData -> 
+        match literalData with
+        |ImmConstant ld -> 
+            checkOp2Literal ld 
+        |RC {K=a;R=b} ->  
+            (a >>> b) + (a <<< 32-b)
+            |> checkOp2Literal
+    | Register register -> 
+        checkOp2Register register 
+        |> Result.map (fun a -> Map.find a cpuData.Regs)
+        |> Result.bind checkOp2Literal
+    | LSL shift -> doShift shift cpuData (<<<)
+    | ASR shift -> doShift shift cpuData (fun a b -> (int a) >>> b |> uint32)
+    | LSR shift -> doShift shift cpuData (>>>)
+    | ROR shift -> doShift shift cpuData (fun a n -> (a >>> n) ||| (a <<< (32-n)))
+    | RRX r -> makeRRX r cpuData
+
+//ARITH FUNCTIONS
+//only called if conditions permit evaluation
+//assume arguments are pre-cleared to be sufficient and valid
+
+let getFlags (res:int64) (isAdditive:bool) (operandSignsSame:bool)= 
+    let negative =
+        res 
+        |> (fun a -> if (0x80000000L &&& a)<>0L then true else false)
+    let zero =
+        res 
+        |> (fun a -> if a=0L then true else false)
+    let carry = 
+        res 
+        |> (fun a -> if (0x100000000L &&& a)<>0L then true else false ) 
+    let overflow =
+        res
+        |> (fun a -> 
+            match isAdditive, operandSignsSame with
+            | true, true -> true
+            | true, false -> false
+            | false, true -> false
+            | false, false -> true
+            )
+    {N=negative;Z=zero;C=carry;V=overflow} 
+
+//HOF for arithmetic functions
+type instrValue = |T1 |T2 |T3
+let engine (args: Instr) (state: DataPath<Instr>) bitOp (instrV:instrValue)=
+    let set_fl = if args.sf ="S" then true else false
+    let dest' = 
+        match args.ap.dest with
+        |Some x -> x
+        |None -> failwithf "Bad dest register name"
+    let op1' = 
+        args.ap.op1 
+        |> fun a -> Map.find a state.Regs
+        |> int64
+    let op2' =
+        flexOp2 args.ap.op2 state
+        |> function
+            |Ok x -> 
+                match x with 
+                |LiteralData l ->
+                    match l with
+                    |ImmConstant ic -> int64(ic)
+                    |RC rc -> (rc.K,rc.R) |> fun (lit,n) -> int64((lit >>> n) + (lit <<< 32-n))
+                |_ -> failwithf "Bad arguments"
+            |Error _-> failwithf "Bad arguments"
+    let opsSameSign = ((op1' &&& op2' &&& 0x80000000L)=0L)
+    let result = bitOp op1' op2'
+    let flags' =
+        if set_fl 
+            then (getFlags result true opsSameSign)
+            else state.Fl
+    let regs' = 
+        Map.toList state.Regs 
+        |> List.map (fun a -> 
+            if fst a = dest' then (fst a, uint32(result)) else (fst a, snd a)
+            )
+        |> Map.ofList
+    {Fl = flags'; Regs = regs'; MM = state.MM}
+
+//Testing parameters
+let defaultFlags: Flags = {N=false;Z=false;C=false;V=false}
+let defaultRegs: Map<RName,uint32> = Map.map (fun _ (s:string) -> 0x2u) regStrings
+let defaultMM: MachineMemory<Instr> = [0u..4u..0xfcu] |> List.map (fun a -> WA a) |> fun b -> [DataLoc 0u] |> List.allPairs b |> Map.ofList
+let (tcpuData: DataPath<Instr>) = {Fl = defaultFlags; Regs = defaultRegs; MM =  defaultMM}
+//{LoadAddr = WA 0u;
+//Label = None;
+//SymTab = None;
+//OpCode = "ADDSNE";
+//Operands = "R0,R1,R2,RRX"} 
+//|> parse 
+////|> 
+
+let eval (parsedData:Result<Parse<Instr>,string> option) (state: DataPath<Instr>) =
+    let instCond = 
+        match parsedData with
+            |None -> Error "Invalid opcode"
+            |Some (Error e) -> Error e
+            |Some (Ok x) -> Ok (x.PInstr,x.PCond)
+    let conditionSatisfied =
+        let f = state.Fl
+        instCond
+        |> Result.map (fun a -> snd a)
+        |> Result.map (fun b -> 
+            match b with
+            | Ceq -> if (f.Z = true) then true else false
+            | Cne -> if (f.Z = false) then true else false
+            | Cmi -> if (f.N = true) then true else false
+            | Cpl -> if (f.N = false) then true else false
+            | Chi -> if (f.C = true && f.Z = false) then true else false
+            | Chs -> if (f.C = true) then true else false
+            | Clo -> if (f.C = false) then true else false
+            | Cls -> if (f.C = false || f.Z = true) then true else false
+            | Cge -> if (f.N = f.V) then true else false
+            | Cgt -> if (f.N = f.V && f.Z = false) = true then true else false
+            | Cle -> if (f.N <> f.V || f.Z = true) then true else false
+            | Clt -> if (f.N <> f.V) then true else false
+            | Cvs -> if (f.V = true) then true else false
+            | Cvc -> if (f.V = false) then true else false
+            | Cnv -> false
+            | Cal -> true
+            )
+    let instruction =
+        instCond
+        |> Result.map (fun a -> fst a)
+    let parameters = 
+        instCond
+        |> Result.map (fun a -> fst a)
+        |> Result.map (fun b -> b.ap)
+    let destStatus =
+        parameters
+        |> Result.map (fun a ->
+            match a.dest with
+            |Some R15 -> "PC"
+            |Some R13 -> "SP"
+            |Some _ -> "strict"
+            |None -> "n/a"
+            )
+    let op1Status =
+        parameters
+        |> Result.map (fun a ->
+            match a.op1 with
+            |R15 -> "PC"
+            |_ -> "strict"
+            )
+    let op2Status =
+        parameters
+        |> Result.map (fun a ->
+            match (flexOp2 a.op2 state) with
+            |Ok (LiteralData _) -> "v.strict"
+            |Ok _ -> "strict"
+            |Error _-> "n/a"
+            )
+    let execOK =
+        instCond
+        |> Result.map (fun a -> fst a)
+        |> Result.map (fun b -> b.rt)
+        |> Result.map (fun c ->
+            match c with
+            |"CMP"|"CMN" ->
+                match destStatus,op1Status,op2Status with
+                |Ok "n/a", Ok "strict", Ok "strict" -> true
+                |_ -> false
+            |"ADC"|"SBC"|"RSB"|"RSC" -> 
+                match destStatus,op1Status,op2Status with
+                |Ok "strict", Ok "strict", Ok "strict" -> true
+                |_ -> false
+            |"SUB" ->
+                match destStatus,op1Status,op2Status with
+                |Ok "strict", Ok "strict", Ok "strict" -> true
+                |Ok "strict", Ok "PC", Ok "v.strict" -> true
+                |Ok "SP", Ok "SP", Ok "v.strict" -> true ///CREATE THE NEW CONDITIONS
+                |_ -> false
+            |"ADD" ->
+                match destStatus,op1Status,op2Status with
+                |Ok "strict", Ok "strict", Ok "strict" -> true ///CREATE THE NEW CONDITIONS
+                |_ -> false
+        )
+    execOK
+    |> Result.map (fun a ->
+        match a with
+        |true -> 
+            instruction ///Must store instruction to memory - make a new function?
+            |> Result.map (fun b ->
+                match b.rt with
+                |"ADD" -> engine b state (+) T1
+                |"SUB" -> engine b state (-) T1
+                |"ADC" -> engine b state (-) T2
+                |"SBC" -> engine b state (-) T2
+                |"RSB" -> engine b state (-) T2
+                |"RSC" -> engine b state (-) T2
+                |"CMP" -> engine b state (-) T3
+                |"CMN" -> engine b state (-) T3
+            )
+        |false -> Ok state 
+    )
+
+    //let defaultMM: MachineMemory<Instr> = [0u..4u..0xfcu] |> List.map (fun a -> WA a) |> fun b -> [DataLoc 0u] |> List.allPairs b |> Map.ofList
+//if everything is valid
+    //store instruction in memory
+    //compute instruction 
+    
+
