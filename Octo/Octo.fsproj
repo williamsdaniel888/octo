@@ -55,13 +55,20 @@
   </Choose>
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
+    <None Include="tester.fsx" />
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="CommonData.fs" />
-    <None Include="tester.fsx" />
     <Compile Include="CommonLex.fs" />
     <Compile Include="DP.fs" />
     <Compile Include="Memory.fs" />
     <Compile Include="CommonTop.fs" />
+    <Compile Include="VTest.fs" />
+    <Compile Include="VProgram.fs" />
+    <Compile Include="VLog.fs" />
+    <Compile Include="Visual.fs" />
+    <Compile Include="VData.fs" />
+    <Compile Include="VCommon.fs" />
+    <Compile Include="File1.fs" />
     <None Include="App.config" />
     <Content Include="packages.config" />
   </ItemGroup>

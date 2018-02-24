@@ -1,11 +1,11 @@
 # Tasks to Complete
 
-- [ ] Write MDS of code
-- [ ] Write implementation and tests for subset of instructions
-- [ ] Test against VisUAL
+- [x] Write MDS of code
+- [x] Write implementation and tests for subset of instructions
+- [x] Test against VisUAL
 - [ ] Randomize VisUAL tests
 - [ ] Document bugs in VisUAL and discuss whether they will be followed
-- [ ] Write MD personal statement
+- [x] Write MD personal statement
 - [ ] Submit code with tests, screenshots of test results, MDS of code, personal statement *_in zip file_*
 
 # Schedule of Instructions
@@ -57,6 +57,12 @@ Set NZCV on op1 - flexible op2
 Set NZCV on op1 + flexible op2
 `CMN{cond} op1, op2 {,SHIFT_OP #expression}`
 
-# Discussion of Bugs found in VisUAL
+# Discussion of Individual Contribution
+In the individual phase I attempted to implement the functions belonging to the 'ARITH' set of instructions within the DP.fs module. All types defined in CommonData and CommonLex are used in DP.fs and a minimal set of new types have been introduced to aid with parsing. The module requires the machine's state (DataPath<'INS>) and input from the top-level parser. As output the module determines the new state if the parsed instruction has been successfully executed.
 
-Watch this space.
+Due to my work pace being unexpectedly slow, the code implements a subset of the basic functionality of VisUAL. Key omissions include:
+- conversion of non-immediates to valid literals and adjustment of instructions before evaluation 
+- adding an imm12 D.U. type to the flexible operand 2 type
+- permitting extra constant types mentioned in the ARM Cortex M3 specification `0x00XY00XY, 0xXY00XY00, 0xXYXYXYXY`. I have noted that VisUAL does not support such instructions from manual testing.
+
+As a consequence of poor time management, I was unable to complete randomized property-based testing against VisUAL. I will press on with completing the code's functionality and begin testing as soon as possible.

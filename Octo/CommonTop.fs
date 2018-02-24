@@ -32,8 +32,6 @@ module CommonTop =
         | Memory.IMatch pa -> pConv IMEM ERRIMEM pa
         | DP.IMatch pa -> pConv IDP ERRIDP pa
         | _ -> None
-    
-    
 
     type CondInstr = Condition * Instr
 
