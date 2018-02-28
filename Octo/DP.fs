@@ -239,7 +239,9 @@ module DP =
     //Called iff conditions permit evaluation
     //assume arguments are pre-cleared to be sufficient and valid
 
-    let getFlags (res:int64) (isAdditive:bool) = 
+    //Given an int64 result, whether the operation is additive/subtractive 
+    //and the MSB of the first operand, determine the new CSPR flags
+    let getFlags (res:int64) (isAdditive:bool) (oldMSBset:bool) = 
         let negative = if (0x80000000L &&& res)<>0L then true else false
         let zero = if res &&& 0xffffffffL = 0L then true else false
         let carry =
@@ -249,7 +251,9 @@ module DP =
                 else 
                     if (res &&& 0x8000000000000000L <> 0L) then false else true
         let overflow = 
-            if (res >= 2147483648L) || (res < -2147483648L) then true else false ///ISSUE: Overflow not computed correctly
+            match oldMSBset with
+            |true -> if res&&&0x80000000L = 0L then true else false
+            |false -> if res&&&0x80000000L = 0L then false else true
         {N=negative;Z=zero;C=carry;V=overflow}
 
     //HOF for performing arithmetic functions

@@ -198,7 +198,7 @@ let pResultInstrMap fMap fMapE paRes =
 /// FLEXIBLE OP2 TOOLS
 type RotConstant = {K: uint32; R: int} // literal value = (K % 256) rotated right by (R &&& 0xF)*2.
 //type ImmConstant = uint32
-type Literal = |RC of RotConstant //|Swappable of uint32//IC of ImmConstant  would allow other values permitted in ARM documentation
+type Literal = |RC of RotConstant |Swappable of uint32 //IC of ImmConstant  would allow other values permitted in ARM documentation
 type Reg = RName
 type SVal = NumericValue of int | RValue of Reg
 type Shift = Reg*SVal
@@ -211,7 +211,7 @@ type Op2 =
     | LSR of Shift
     | ROR of Shift
     | RRX of Reg
-    | IMM12 of uint32
+    //| IMM12 of uint32
 
 type RegParameters = {dest: RName option; op1: RName; op2: Op2}
 type Instr = {ic: InstrClass; rt:string; sf:string; cnd:Condition ;ap: RegParameters}
@@ -251,7 +251,9 @@ let checkOp2Literal (imm: uint32) =
         |true -> 
             allowedLiterals.[imm]
             |> fun a -> {K = fst a; R = snd a} |> RC |> LiteralData |> Ok
-        |false -> Error "CO2L: Invalid literal, must be of format N ROR 2M, 0u<=N<=255u, 0<=M<=15"
+        |false -> 
+            imm |> Swappable |> LiteralData |> Ok
+            //Error "CO2L: Invalid literal, must be of format N ROR 2M, 0u<=N<=255u, 0<=M<=15"
             //if imm >= 0x8000000u
             //    then imm |> Swappable |> LiteralData |> Ok
             //    |ImmP1 x -> x |> IC |> LiteralData |> Ok
@@ -265,12 +267,10 @@ let checkOp2Register (r:RName) =
         else Error "CO2R: Invalid register value, must be R0-R12 or R14"
 
 //Verify whether input is a valid imm12
-let (|Imm12'|_|) (i:uint32) = 
-    if i>=0u && i<=4095u then Some i else None
-let checkImm12 (r: uint32) =
-    match r with
-        |Imm12' a -> IMM12 a |> Ok
-        |_-> Error "CI12: Invalid imm12 value, must be 0<=n<=4095"
+//let (|Imm12'|_|) (i:uint32) = 
+//    if i>=0u && i<=4095u then Some i else None
+//let checkImm12 (r: uint32) =
+//    if r>=0u && r<=4095u then Ok i else Error "CI12: Invalid imm12 value, must be 0<=n<=4095"
 
 ///TOKENIZER
 type Token = Dest of RName option| Op1' of RName | Op2' of Op2
@@ -285,7 +285,7 @@ let splitIntoWords ( line:string ) =
             System.StringSplitOptions.RemoveEmptyEntries)
 let (|Reg'|_|) (str:string) = if str.StartsWith("R") then regNames.TryFind str else None
 let (|Nmr'|_|) (str:string) = if str.StartsWith("#") then Some (int str.[1..]) else None
-let (|NI'|_|) (str:string) = if str.StartsWith("#") then Some ((int str.[1..])|> uint32) else None
+//let (|NI'|_|) (str:string) = if str.StartsWith("#") then Some ((int str.[1..])|> uint32) else None
 let (|ASR'|_|) (str:string) = 
     str.StartsWith("ASR") |> function
     |true -> 
@@ -339,8 +339,8 @@ let tokenizer (str:string) =
         |[|q0;q1;q2|] ->
             match q0,q1,q2 with
                 |Reg' a, Reg' b, Reg' c -> [Dest (Some a); Op1' b; Op2' (Register c)] |> Ok
-                |Reg' a, "R15", NI' c |Reg' a, "PC", NI' c ->
-                    checkImm12 c |> Result.map (fun x-> [Dest (Some a); Op1' R15; Op2' x]) 
+                //|Reg' a, "R15", NI' c |Reg' a, "PC", NI' c ->
+                //    checkImm12 c |> Result.map (fun x-> [Dest (Some a); Op1' R15; Op2' x]) 
                 |Reg' a, Reg' b, Nmr' c ->
                     checkOp2Literal(uint32(c)) |> Result.map (fun x-> [Dest (Some a); Op1' b; Op2' x]) 
                 |_ -> Error "TOK: Invalid syntax: format must be \"dest, op1, op2\""
@@ -353,7 +353,7 @@ let tokenizer (str:string) =
                 |Reg' a, Reg' b, Reg' c, RRX' _ -> [Dest (Some a); Op1' b; Op2' (RRX(c))] |> Ok
                 |_ -> Error "TOK: Invalid syntax: format must be \"dest, op1, op2, [shift #X]\" or \"dest, op1, op2, [shift Rn]\" "
         |_ -> Error "TOK: Invalid syntax: check inputs"
-//tokenizer "R0,PC,#0"
+tokenizer "R0,PC,#0"
             
 /// specification for ARITH set of instructions
 let dPSpec = {
@@ -365,46 +365,8 @@ let dPSpec = {
 /// map of all possible opcodes recognised
 let opCodes = opCodeExpand dPSpec
 
-/// main function to parse a line of assembler
-/// ls contains the line input
-/// and other state needed to generate output
-/// the result is None if the opcode does not match
-/// otherwise it is Ok Parse or Error (parse error string)
-let parse (ls: LineData) : Result<Parse<Instr>,string> option =
-    ls.Operands
-    |> tokenizer 
-    |> Result.map (fun (a:Token list) ->
-        a 
-        |>function
-        |[Dest de; Op1' o1; Op2' o2] -> {dest = de; op1 = o1; op2 = o2}
-        )
-    |>function
-        |Ok ops ->
-            let parse' (instrC, (root,suffix,pCond)) =
-                let (WA la) = ls.LoadAddr // memory address this instruction is loaded
-                Ok { 
-                    // Normal (non-error) return from result monad
-                    // This is the instruction determined from opcode, suffix and parsing operands.
-                    PInstr = {ic=instrC; rt=root; sf=suffix; cnd=pCond; ap=ops};
-                    // This is normally the line label as contained in
-                    // ls together with the label's value which is normally
-                    // ls.LoadAddr. Some type conversion is needed since the
-                    // label value is a number and not necessarily a word address
-                    // it does not have to be div by 4, though it usually is
-                    PLabel = ls.Label |> Option.map (fun lab -> lab, la) ; 
-                    // this is the number of bytes taken by the instruction
-                    // word loaded into memory. For arm instructions it is always 4 bytes. 
-                    // For data definition DCD etc it is variable.
-                    //  For EQU (which does not affect memory) it is 0
-                    PSize = 4u; 
-                    // the instruction condition is detected in the opcode and opCodeExpand                 
-                    // has already calculated condition already in the opcode map.
-                    // this part never changes
-                    PCond = pCond 
-                    }
-            Map.tryFind ls.OpCode opCodes // lookup opcode to see if it is known
-            |> Option.map parse' // if unknown keep none, if known parse it.
-        |Error x -> Some (Error x)
+[<Struct>]
+type opValStatus = PC |SP |Strict |VStrict |NA //|Allowed |IMT
 
 //Flexible op2 evaluation tools
 
@@ -442,7 +404,7 @@ let flexOp2 (op2:Op2) (cpuData:DataPath<Instr>) =
     | LiteralData (RC {K=a;R=b}) ->  
             (a >>> b) + (a <<< 32-b)
             |> checkOp2Literal
-    //| LiteralData (Swappable x) -> checkOp2Literal x
+    | LiteralData (Swappable x) -> checkOp2Literal x
     | Register register -> 
         checkOp2Register register 
         |> Result.map (fun a -> Map.find a cpuData.Regs)
@@ -454,11 +416,335 @@ let flexOp2 (op2:Op2) (cpuData:DataPath<Instr>) =
     | RRX r -> makeRRX r cpuData
     //
 
+/// main function to parse a line of assembler
+/// ls contains the line input
+/// and other state needed to generate output
+/// the result is None if the opcode does not match
+/// otherwise it is Ok Parse or Error (parse error string)
+let parse (ls: LineData) (state:DataPath<Instr>) = //: Result<Parse<Instr>,string> option =
+    ls.Operands
+    |> tokenizer 
+    |> Result.map (fun (a:Token list) ->
+        a 
+        |> function |[Dest de; Op1' o1; Op2' o2] -> {dest = de; op1 = o1; op2 = o2}
+        )
+    |>function
+        |Ok ops ->
+            let parse' (instrC, (root,suffix,pCond)) = 
+                let destStatus =
+                    match ops.dest with
+                        |Some R15 -> PC
+                        |Some R13 -> SP
+                        |Some _ -> Strict
+                        |None -> NA
+                let op1Status =
+                    match ops.op1 with
+                        |R15 -> PC
+                        |R13 -> SP
+                        |_ -> Strict
+                let op2Status =
+                    let a1 =
+                        match (flexOp2 ops.op2 state) with
+                        //|Ok (IMM12 _) -> Imm12
+                        |Ok (LiteralData (RC x)) ->
+                            match x.R with
+                            | 0 -> VStrict
+                            |_ -> Strict
+                        |Ok (LSL (_,(NumericValue x))) ->
+                            match x with
+                            |0 |1 |2 |3 -> VStrict
+                            |_-> Strict
+                        |Ok _ -> Strict //covers Op2 LiteralData Swappable as well
+                        |Error _ -> NA
+                    let swapValue = //a tuple of mustSwap:bool, swappableValue: Result<Op2,string> option
+                        match (flexOp2 ops.op2 state) with
+                        |Ok (LiteralData (Swappable x)) -> 
+                            match root with
+                            |"RSB"|"RSC" -> false, Some (Error "O2S: This value cannot be converted into a valid immediate")
+                            |"ADD"|"SUB"|"CMP"|"CMN" -> 
+                                if Map.containsKey (~~~x + 1u) allowedLiterals
+                                then true, Some(Ok (~~~x + 1u)) else false, Some (Error "O2S: This value cannot be converted into a valid immediate")
+                            |"ADC" -> 
+                                if Map.containsKey (~~~x + 2u) allowedLiterals
+                                then true, Some(Ok (~~~x + 2u)) else false, Some (Error "O2S: This value cannot be converted into a valid immediate")
+                            |"SBC" ->
+                                if Map.containsKey (~~~x) allowedLiterals
+                                then true, Some(Ok (~~~x)) else false, Some (Error "O2S: This value cannot be converted into a valid immediate")
+                        |Ok (LiteralData (RC _)) -> false, None
+                    a1,swapValue
+                let newop2 imm = 
+                    Map.containsKey imm allowedLiterals
+                    |> function 
+                        |true -> 
+                            allowedLiterals.[imm]
+                            |> fun d -> {K = fst d; R = snd d} |> RC |> LiteralData
+                let newParameters = 
+                    let c:Instr = {ic = instrC; rt = root; sf = suffix; cnd = pCond; ap = ops}///rebuild output instruction 
+                    match c.rt with
+                        |"CMP"|"CMN" ->
+                            let rt' = c.rt |> function |"CMP" -> "CMN" |"CMN" -> "CMP"
+                            let op' x = newop2 (~~~x + 1u)
+                            match destStatus,op1Status,op2Status with
+                            |NA, Strict, (Strict,(true,Some(Ok x))) -> 
+                                Ok {c with rt = rt'; ap = {ops with op2 = op' x}} 
+                            |NA, Strict, (Strict,(false,None)) -> Ok c
+                            |NA, Strict, (Strict,(true,Some(Error x))) -> Error x
+                        |"ADC"|"SBC" -> 
+                            let rt' = c.rt |> function |"ADC" -> "CMN" |"SBC" -> "CMP"
+                            let op' x = c.rt |> function |"ADC" -> newop2 (~~~x + 2u) |"SBC" -> newop2 (~~~x)
+                            match destStatus,op1Status,op2Status with
+                            |Strict, Strict, (Strict,(true,Some(Ok x))) -> 
+                                Ok {c with rt = rt'; ap = {ops with op2 = op' x}}
+                            |Strict, Strict, (Strict,(false,None)) -> Ok c
+                            |NA, Strict, (Strict,(true,Some(Error x))) -> Error x
+                        |"RSB"|"RSC" -> 
+                            match destStatus,op1Status,op2Status with
+                            |Strict, Strict, (Strict,(false,None)) -> Ok c
+                            |NA, Strict, (Strict,(true,Some(Error x))) -> Error x
+                        |"SUB" ->
+                            let rt' = "ADD"
+                            let op' x = newop2 (~~~x + 1u)
+                            match destStatus,op1Status,op2Status with
+                            |Strict, Strict, (Strict,(true,Some(Ok x))) -> 
+                                Ok {c with rt = rt'; ap = {ops with op2 = op' x}}
+                            |Strict, Strict, (Strict,(false,None)) -> Ok c
+                            |Strict, SP, (Strict,(true,Some(Ok x))) -> 
+                                Ok {c with rt = rt'; ap = {ops with op2 = op' x}}
+                            |Strict, SP, (Strict,(false,None)) -> Ok c
+                            |SP, SP, (VStrict,(true,Some(Ok x))) -> 
+                                Ok {c with rt = rt'; ap = {ops with op2 = op' x}}
+                            |SP, SP, (VStrict,(false,None)) -> Ok c
+                            //|Ok "strict", Ok "PC", Ok ("imm12","allowed") -> 
+                            //    if snd c = "" then true else false
+                            |NA, Strict, (Strict,(true,Some(Error x))) -> Error x
+                        |"ADD" ->
+                            let rt' = "SUB"
+                            let op' x = newop2 (~~~x + 1u)
+                            match destStatus,op1Status,op2Status with
+                            |Strict, Strict, (Strict,(true,Some(Ok x)))  -> 
+                                Ok {c with rt = rt'; ap = {ops with op2 = op' x}}
+                            |Strict, Strict, (Strict,(false,None)) -> Ok c
+                            |Strict, SP, (Strict,(true,Some(Ok x)))   -> 
+                                Ok {c with rt = rt'; ap = {ops with op2 = op' x}}
+                            |Strict, SP, (Strict,(false,None)) -> Ok c
+                            |SP, SP, (Strict,(true,Some(Ok x))) -> 
+                                Ok {c with rt = rt'; ap = {ops with op2 = op' x}} 
+                            |SP, SP, (Strict,(false,None)) -> Ok c
+                            |PC, PC, (Strict,(true,Some(Ok x))) -> Ok {c with rt = rt'; ap = {ops with op2 = op' x}}
+                                //if c.sf = "" 
+                                //    then true, {c with rt = rt'; ap = {c.ap with op2 = op' x}}
+                                //    else false, {c with rt = rt'; ap = {c.ap with op2 = op' x}}
+                            |PC, PC, (Strict,(false,None)) -> Ok c
+                                //if c.sf = "" 
+                                //    then (true, c)
+                                //    else (false, c)
+                            //|Ok "strict", Ok "PC", Ok ("imm12","allowed") -> 
+                            //    if snd c = "" then true else false
+                            |NA, Strict, (Strict,(true,Some(Error x))) -> Error x
+                let (WA la) = ls.LoadAddr // memory address this instruction is loaded
+                newParameters
+                |> Result.map (fun a ->
+                    { 
+                        // Normal (non-error) return from result monad
+                        // This is the instruction determined from opcode, suffix and parsing operands.
+                        PInstr = a;
+                        // This is normally the line label as contained in
+                        // ls together with the label's value which is normally
+                        // ls.LoadAddr. Some type conversion is needed since the
+                        // label value is a number and not necessarily a word address
+                        // it does not have to be div by 4, though it usually is
+                        PLabel = ls.Label |> Option.map (fun lab -> lab, la) ; 
+                        // this is the number of bytes taken by the instruction
+                        // word loaded into memory. For arm instructions it is always 4 bytes. 
+                        // For data definition DCD etc it is variable.
+                        //  For EQU (which does not affect memory) it is 0
+                        PSize = 4u; 
+                        // the instruction condition is detected in the opcode and opCodeExpand                 
+                        // has already calculated condition already in the opcode map.
+                        // this part never changes
+                        PCond = pCond 
+                        }
+                    )
+            Map.tryFind ls.OpCode opCodes // lookup opcode to see if it is known
+            |> Option.map parse' // if unknown keep none, if known parse it.
+        |Error x -> Some (Error x)
+
+    //let instCond = 
+    //    match parsedData with
+    //        |None -> Error "EV: Invalid opcode"
+    //        |Some (Error e) -> Error e
+    //        |Some (Ok x) -> Ok (x.PInstr,x.PCond)
+    //let parameters = 
+    //    instCond
+    //    |> Result.map (fun a -> fst a)
+    //let destStatus =
+    //    parameters
+    //    |> Result.map (fun a ->
+    //        match a.ap.dest with
+    //        |Some R15 -> PC
+    //        |Some R13 -> SP
+    //        |Some _ -> Strict
+    //        |None -> NA
+    //        )
+    //let op1Status =
+    //    parameters
+    //    |> Result.map (fun a ->
+    //        match a.ap.op1 with
+    //        |R15 -> PC
+    //        |R13 -> SP
+    //        |_ -> Strict
+    //        )
+    //let op2Status =
+    //    parameters
+    //    |> Result.map (fun a ->
+    //        let a1 =
+    //            match (flexOp2 a.ap.op2 state) with
+    //            //|Ok (IMM12 _) -> Imm12
+    //            |Ok (LiteralData (RC x)) ->
+    //                match x.R with
+    //                | 0 -> VStrict
+    //                |_ -> Strict
+    //            |Ok (LSL (_,(NumericValue x))) ->
+    //                match x with
+    //                |0 |1 |2 |3 -> VStrict
+    //                |_-> Strict
+    //            |Ok _ -> Strict //covers Op2 LiteralData Swappable as well
+    //            |Error _ -> NA
+    //        let swapValue = //a tuple of mustSwap:bool, swappableValue: Result<Op2,string> option
+    //            match (flexOp2 a.ap.op2 state) with
+    //            |Ok (LiteralData (Swappable x)) -> 
+    //                match a.rt with
+    //                |"RSB"|"RSC" -> false, Some (Error "O2S: This value cannot be converted into a valid immediate")
+    //                |"ADD"|"SUB"|"CMP"|"CMN" -> 
+    //                    if Map.containsKey (~~~x + 1u) allowedLiterals
+    //                    then true, Some(Ok (~~~x + 1u)) else false, Some (Error "O2S: This value cannot be converted into a valid immediate")
+    //                |"ADC" -> 
+    //                    if Map.containsKey (~~~x + 2u) allowedLiterals
+    //                    then true, Some(Ok (~~~x + 2u)) else false, Some (Error "O2S: This value cannot be converted into a valid immediate")
+    //                |"SBC" ->
+    //                    if Map.containsKey (~~~x) allowedLiterals
+    //                    then true, Some(Ok (~~~x)) else false, Some (Error "O2S: This value cannot be converted into a valid immediate")
+    //            |Ok (LiteralData (RC _)) -> false, None
+    //        a1,swapValue
+    //    )
+    //let newop2 imm = 
+    //    Map.containsKey imm allowedLiterals
+    //    |> function 
+    //        |true -> 
+    //            allowedLiterals.[imm]
+    //            |> fun d -> {K = fst d; R = snd d} |> RC |> LiteralData
+    //instCond
+    //|> Result.map (fun a -> fst a)
+    //|> Result.map (fun c ->
+    //    match c.rt with
+    //    |"CMP"|"CMN" ->
+    //        let rt' = c.rt |> function |"CMP" -> "CMN" |"CMN" -> "CMP"
+    //        let op' x = newop2 (~~~x + 1u)
+    //        match destStatus,op1Status,op2Status with
+    //        |Ok NA, Ok Strict, Ok (Strict,(true,Some(Ok x))) -> 
+    //            true, {c with rt = rt'; ap = {c.ap with op2 = op' x}}
+    //        |Ok NA, Ok Strict, Ok (Strict,(false,None)) -> true, c
+    //        |_ -> false, c
+    //    |"ADC"|"SBC" -> 
+    //        let rt' = c.rt |> function |"ADC" -> "CMN" |"SBC" -> "CMP"
+    //        let op' x = c.rt |> function |"ADC" -> newop2 (~~~x + 2u) |"SBC" -> newop2 (~~~x)
+    //        match destStatus,op1Status,op2Status with
+    //        |Ok Strict, Ok Strict, Ok (Strict,(true,Some(Ok x))) -> 
+    //            true, {c with rt = rt'; ap = {c.ap with op2 = op' x}}
+    //        |Ok Strict, Ok Strict, Ok (Strict,(false,None)) -> true, c
+    //        |_ -> false, c
+    //    |"RSB"|"RSC" -> 
+    //        match destStatus,op1Status,op2Status with
+    //        |Ok Strict, Ok Strict, Ok (Strict,(false,None)) -> true, c
+    //        |_ -> false, c
+    //    |"SUB" ->
+    //        let rt' = "ADD"
+    //        let op' x = newop2 (~~~x + 1u)
+    //        match destStatus,op1Status,op2Status with
+    //        |Ok Strict, Ok Strict, Ok (Strict,(true,Some(Ok x))) -> 
+    //            true, {c with rt = rt'; ap = {c.ap with op2 = op' x}}
+    //        |Ok Strict, Ok Strict, Ok (Strict,(false,None)) -> true, c
+    //        |Ok Strict, Ok SP, Ok (Strict,(true,Some(Ok x))) -> 
+    //            true, {c with rt = rt'; ap = {c.ap with op2 = op' x}}
+    //        |Ok Strict, Ok SP, Ok (Strict,(false,None)) -> true, c
+    //        |Ok SP, Ok SP, Ok (VStrict,(true,Some(Ok x))) -> 
+    //            true, {c with rt = rt'; ap = {c.ap with op2 = op' x}}
+    //        |Ok SP, Ok SP, Ok (VStrict,(false,None)) -> true, c
+    //        //|Ok "strict", Ok "PC", Ok ("imm12","allowed") -> 
+    //        //    if snd c = "" then true else false
+    //        |_ -> false, c
+    //    |"ADD" ->
+    //        let rt' = "SUB"
+    //        let op' x = newop2 (~~~x + 1u)
+    //        match destStatus,op1Status,op2Status with
+    //        |Ok Strict, Ok Strict, Ok (Strict,(true,Some(Ok x)))  -> 
+    //            true, {c with rt = rt'; ap = {c.ap with op2 = op' x}}
+    //        |Ok Strict, Ok Strict, Ok (Strict,(false,None)) -> true, c
+    //        |Ok Strict, Ok SP, Ok (Strict,(true,Some(Ok x)))   -> 
+    //            true, {c with rt = rt'; ap = {c.ap with op2 = op' x}}
+    //        |Ok Strict, Ok SP, Ok (Strict,(false,None)) -> true, c
+    //        |Ok SP, Ok SP, Ok (Strict,(true,Some(Ok x))) -> 
+    //            true, {c with rt = rt'; ap = {c.ap with op2 = op' x}} 
+    //        |Ok SP, Ok SP, Ok (Strict,(false,None)) -> true, c
+    //        |Ok PC, Ok PC, Ok (Strict,(true,Some(Ok x))) ->
+    //            if c.sf = "" 
+    //                then true, {c with rt = rt'; ap = {c.ap with op2 = op' x}}
+    //                else false, {c with rt = rt'; ap = {c.ap with op2 = op' x}}
+    //        |Ok PC, Ok PC, Ok (Strict,(false,None)) -> 
+    //            if c.sf = "" 
+    //                then (true, c)
+    //                else (false, c)
+    //        //|Ok "strict", Ok "PC", Ok ("imm12","allowed") -> 
+    //        //    if snd c = "" then true else false
+    //        |_ -> false, c
+    //    )
+    //let iValidated (b:Result<Instr,string>) =
+    //    b
+    //    |> Result.map (fun a ->
+    //        let p = 
+    //            match execOK with 
+    //            |Ok x -> x 
+    //            |Error _ -> false
+    //        match p with
+    //        |false -> a //invalid instruction, will not be corrected and will not be executed
+    //        |true -> //valid instruction, will be corrected if swappable
+    //            match a.ap.op2 with
+    //            |LiteralData (RC {K=k;R=r}) -> a
+    //            |LiteralData (Swappable x) -> 
+    //                //convert input to valid literal op2
+    //                let newop2 imm = 
+    //                    Map.containsKey imm allowedLiterals
+    //                    |> function 
+    //                        |true -> 
+    //                            allowedLiterals.[imm]
+    //                            |> fun d -> {K = fst d; R = snd d} |> RC |> LiteralData
+    //                match a.rt with
+    //                |"ADD" -> {a with rt = "SUB"; ap = {a.ap with op2 = newop2 (~~~x + 1u)}}
+    //                |"SUB" -> {a with rt = "ADD"; ap = {a.ap with op2 = newop2 (~~~x + 1u)}}
+    //                |"ADC" -> {a with rt = "SBC"; ap = {a.ap with op2 = newop2 (~~~x + 2u)}}
+    //                |"SBC" -> {a with rt = "ADC"; ap = {a.ap with op2 = newop2 (~~~x)}}
+    //                |"CMP" -> {a with rt = "CMN"; ap = {a.ap with op2 = newop2 (~~~x + 1u)}}
+    //                |"CMN" -> {a with rt = "CMP"; ap = {a.ap with op2 = newop2 (~~~x + 1u)}}
+    //        )
+
+//Test here
+let defaultFlags: Flags = {N=false;Z=false;C=false;V=false}
+let defaultRegs: Map<RName,uint32> = Map.map (fun _ (s:string) -> uint32(-1)) regStrings
+let defaultMM: MachineMemory<Instr> = [0u..4u..0xfcu] |> List.map (fun a -> WA a) |> fun b -> [DataLoc 0u] |> List.allPairs b |> Map.ofList
+let (tcpuData: DataPath<Instr>) = {Fl = defaultFlags; Regs = defaultRegs; MM =  defaultMM}
+
+{LoadAddr = WA 0u;
+Label = None;
+SymTab = None;
+OpCode = "ADDS";
+Operands = "R0,R1,R1"} 
+|> fun a -> parse a tcpuData
+
 //ARITH FUNCTIONS
 //only called if conditions permit evaluation
 //assume arguments are pre-cleared to be sufficient and valid
 
-let getFlags (res:int64) (isAdditive:bool) = 
+let getFlags (res:int64) (isAdditive:bool) (oldMSBset:bool) = 
     let negative = if (0x80000000L &&& res)<>0L then true else false
     let zero = if res &&& 0xffffffffL = 0L then true else false
     let carry =
@@ -468,7 +754,9 @@ let getFlags (res:int64) (isAdditive:bool) =
             else 
                 if (res &&& 0x8000000000000000L <> 0L) then false else true
     let overflow = 
-        if (res >= 2147483648L) || (res < -2147483648L) then true else false ///ISSUE: Overflow not computed correctly
+        match oldMSBset with
+        |true -> if res&&&0x80000000L = 0L then true else false
+        |false -> if res&&&0x80000000L = 0L then false else true
     {N=negative;Z=zero;C=carry;V=overflow}
 
 //HOF for arithmetic functions
@@ -485,13 +773,13 @@ let engine (args: Instr) (state: DataPath<Instr>) bitOp=
                 match x with 
                 |LiteralData (RC rc) -> (rc.K,rc.R) |> fun (lit,n) -> int64((lit >>> n) + (lit <<< 32-n))
                 |_ -> failwithf "Bad arguments"
-            |Error _-> failwithf "Bad arguments"
-    let opsSameSign = ((op1' &&& op2' &&& 0x80000000L)=0L)
+            |Error _-> failwithf "Bad arguments" 
+    let op1MSBset = (op1' &&& 0x80000000L <> 0L)
     let addness = if args.rt = "ADD" || args.rt = "ADC" || args.rt = "CMN" then true else false
     let result = bitOp op1' op2' state.Fl.C
     let flags' =
         if args.sf ="S"
-            then (getFlags result addness)
+            then (getFlags result addness op1MSBset)
             else state.Fl
     let regs' = 
         match dest' with
@@ -571,7 +859,7 @@ let eval (parsedData:Result<Parse<Instr>,string> option) (state: DataPath<Instr>
             |None -> Error "EV: Invalid opcode"
             |Some (Error e) -> Error e
             |Some (Ok x) -> Ok (x.PInstr,x.PCond)
-    let conditionSatisfied =
+    let conditionMet =
         let f = state.Fl
         instCond
         |> Result.map (fun a -> snd a)
@@ -594,142 +882,11 @@ let eval (parsedData:Result<Parse<Instr>,string> option) (state: DataPath<Instr>
             | Cnv -> false
             | Cal -> true
             )
-    let instruction =
-        instCond
-        |> Result.map (fun a -> fst a)
-    let parameters = 
-        instCond
-        |> Result.map (fun a -> fst a)
-        |> Result.map (fun b -> b.ap)
-    let destStatus =
-        parameters
-        |> Result.map (fun a ->
-            match a.dest with
-            |Some R15 -> "PC"
-            |Some R13 -> "SP"
-            |Some _ -> "strict"
-            |None -> "n/a"
-            )
-    let op1Status =
-        parameters
-        |> Result.map (fun a ->
-            match a.op1 with
-            |R15 -> "PC"
-            |R13 -> "SP"
-            |_ -> "strict"
-            )
-    let op2Status =
-        instruction
-        |> Result.map (fun a ->
-            let a1 =
-                match (flexOp2 a.ap.op2 state) with
-                |Ok (IMM12 _) -> "imm12"
-                |Ok (LiteralData (RC x)) ->
-                    match x.R with
-                    | 0 -> "v.strict"
-                    |_->"strict"
-                |Ok (LSL (_,(NumericValue x))) ->
-                    match x with
-                    |0 |1 |2 |3 -> "v.strict"
-                    |_->"strict"
-                |Ok _ -> "strict" //covers Op2 LiteralData Swappable as well
-                |Error _ -> "n/a"
-            let a2 =
-                match (flexOp2 a.ap.op2 state) with
-                //|Ok (LiteralData (Swappable x)) -> 
-                //    match a.rt with
-                //    |"RSB"|"RSC" -> "n/a"
-                //    |"ADD"|"SUB"|"CMP"|"CMN" ->
-                //        if Map.containsKey (~~~x + 1u) allowedLiterals
-                //            then "allowed"
-                //            else "n/a"
-                //    |"ADC" ->
-                //        if Map.containsKey (~~~x + 2u) allowedLiterals
-                //            then "allowed"
-                //            else "n/a"
-                //    |"SBC" ->
-                //        if Map.containsKey (~~~x) allowedLiterals
-                //            then "allowed"
-                //            else "n/a"
-                //    |_ -> "allowed"
-                |Ok (LiteralData (RC _)) -> "allowed"
-            a1,a2
-        )
-    let execOK =
-        instCond
-        |> Result.map (fun a -> fst a)
-        |> Result.map (fun b -> b.rt,b.sf)
-        |> Result.map (fun c ->
-            match fst c with
-            |"CMP"|"CMN" ->
-                match destStatus,op1Status,op2Status with
-                |Ok "n/a", Ok "strict", Ok ("strict","allowed") -> true
-                |_ -> false
-            |"ADC"|"SBC" -> 
-                match destStatus,op1Status,op2Status with
-                |Ok "strict", Ok "strict", Ok ("strict","allowed") -> true
-                |_ -> false
-            |"RSB"|"RSC" -> 
-                match destStatus,op1Status,op2Status with
-                |Ok "strict", Ok "strict", Ok ("strict","allowed") -> true
-                |_ -> false
-            |"SUB" ->
-                match destStatus,op1Status,op2Status with
-                |Ok "strict", Ok "strict", Ok ("strict","allowed") -> true
-                |Ok "strict", Ok "SP", Ok ("strict","allowed") -> true
-                |Ok "SP", Ok "SP", Ok ("v.strict","allowed") -> true
-                |Ok "strict", Ok "PC", Ok ("imm12","allowed") -> 
-                    if snd c = "" then true else false
-                |_ -> false
-            |"ADD" ->
-                match destStatus,op1Status,op2Status with
-                |Ok "strict", Ok "strict", Ok ("strict","allowed") -> true
-                |Ok "strict", Ok "SP", Ok ("strict","allowed") -> true
-                |Ok "SP", Ok "SP", Ok ("v.strict","allowed") -> true
-                |Ok "PC", Ok "PC", Ok ("strict","allowed") -> 
-                    if snd c = "" then true else false
-                |Ok "strict", Ok "PC", Ok ("imm12","allowed") -> 
-                    if snd c = "" then true else false
-                |_ -> false
-        )
-    //let iValidated (b:Result<Instr,string>) =
-    //    b
-    //    |> Result.map (fun a ->
-    //        let p = 
-    //            match execOK with 
-    //            |Ok x -> x 
-    //            |Error _ -> false
-    //        match p with
-    //        |false -> a //invalid instruction, will not be corrected and will not executed
-    //        |true -> //valid instruction, will be corrected if swappable
-    //            match a.ap.op2 with
-    //            |LiteralData (RC {K=k;R=r}) -> a
-    //            |LiteralData (Swappable x) -> 
-    //                //convert input to valid literal op2
-    //                let newop2 imm = 
-    //                    Map.containsKey imm allowedLiterals
-    //                    |> function 
-    //                        |true -> 
-    //                            allowedLiterals.[imm]
-    //                            |> fun d -> {K = fst d; R = snd d} |> RC |> LiteralData
-    //                match a.rt with
-    //                |"ADD" -> {a with rt = "SUB"; ap = {a.ap with op2 = newop2 (~~~x + 1u)}}
-    //                |"SUB" -> {a with rt = "ADD"; ap = {a.ap with op2 = newop2 (~~~x + 1u)}}
-    //                |"ADC" -> {a with rt = "SBC"; ap = {a.ap with op2 = newop2 (~~~x + 2u)}}
-    //                |"SBC" -> {a with rt = "ADC"; ap = {a.ap with op2 = newop2 (~~~x)}}
-    //                |"CMP" -> {a with rt = "CMN"; ap = {a.ap with op2 = newop2 (~~~x + 1u)}}
-    //                |"CMN" -> {a with rt = "CMP"; ap = {a.ap with op2 = newop2 (~~~x + 1u)}}
-    //        )
-
-    instruction
-    //|> iValidated
+    instCond
+    |> Result.map (fun a -> fst a)
     |> Result.map (fun b ->
-        let p = 
-            match execOK with 
-            |Ok x -> x 
-            |Error _ -> false
-        match p with
-            |true ->
+        match conditionMet with
+            |Ok true ->
                 match b.rt with
                 |"ADD" -> engine b state (fun x y _ -> x + y) 
                 |"SUB" -> engine b state (fun x y _ -> x - y) 
@@ -739,20 +896,20 @@ let eval (parsedData:Result<Parse<Instr>,string> option) (state: DataPath<Instr>
                 |"RSC" -> engine b state (fun x y z -> y - x + (if z then 1L else 0L) - 1L)
                 |"CMP" -> engine b state (fun x y _ -> x - y)
                 |"CMN" -> engine b state (fun x y _ -> x + y) 
-            |false -> state 
+            |_ -> state 
     )
 
 ////Testing parameters
-let defaultFlags: Flags = {N=false;Z=false;C=false;V=false}
-let defaultRegs: Map<RName,uint32> = Map.map (fun _ (s:string) -> 0x1u) regStrings
-let defaultMM: MachineMemory<Instr> = [0u..4u..0xfcu] |> List.map (fun a -> WA a) |> fun b -> [DataLoc 0u] |> List.allPairs b |> Map.ofList
-let (tcpuData: DataPath<Instr>) = {Fl = defaultFlags; Regs = defaultRegs; MM =  defaultMM}
+//let defaultFlags: Flags = {N=false;Z=false;C=false;V=false}
+//let defaultRegs: Map<RName,uint32> = Map.map (fun _ (s:string) -> 0x1u) regStrings
+//let defaultMM: MachineMemory<Instr> = [0u..4u..0xfcu] |> List.map (fun a -> WA a) |> fun b -> [DataLoc 0u] |> List.allPairs b |> Map.ofList
+//let (tcpuData: DataPath<Instr>) = {Fl = defaultFlags; Regs = defaultRegs; MM =  defaultMM}
 
-{LoadAddr = WA 0u;
-Label = None;
-SymTab = None;
-OpCode = "SUBS";
-Operands = "R0,R1,R1"} 
-|> parse 
-|> fun a -> eval a tcpuData
+//{LoadAddr = WA 0u;
+//Label = None;
+//SymTab = None;
+//OpCode = "SUBS";
+//Operands = "R0,R1,R1"} 
+//|> parse 
+//|> fun a -> eval a tcpuData
 
