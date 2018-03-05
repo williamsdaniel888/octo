@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>README</title>
+  <style type="text/css">
+      code{white-space: pre-wrap;}
+      span.smallcaps{font-variant: small-caps;}
+      span.underline{text-decoration: underline;}
+      div.column{display: inline-block; vertical-align: top; width: 50%;}
+  </style>
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+</head>
+<body>
+<h1 id="visualinterface">VisualInterface</h1>
+<p>This is an F# interface to <a href="https://salmanarif.bitbucket.io/visual/downloads.html">VisUAL</a> emulator. The basic functionality is a function that has input an assembler source file and output a trace of execution, similar to what would happen in the VisUAL GUI.</p>
+<p>A built-in cache, if configured, means that repeated execution of the same program will be near instantaneous. Otherwise every program takes 0.5s or so to execute due to Java startup time.</p>
+<p>For information on VisUAL assembler instructions see the VisUAL documentation, or ask on Slack.</p>
+<h2 id="files">Files</h2>
+<p>Directories:</p>
+<ul>
+<li><code>.\VisualTest</code> - F# project <code>VisualTest</code> with the VisUAL interface and its test code</li>
+<li><code>.\visualapp</code> - the VisUAL app itself, with its portable Java distribution (change for os-x or linux)</li>
+<li><code>.\ visualWork</code> - directory used by VisUAL I/O files, and the interface itself, for temporary files</li>
+</ul>
+<p>F# Program files under VisualTest:</p>
+<ul>
+<li><code>VCommon.fs</code> Base types used throughout</li>
+<li><code>VData.fs</code> Auto-create assembler fragments for interfacing</li>
+<li><code>VLog.fs</code> Primitive serialisation interface for cache. Written without dependencies.</li>
+<li><code>Visual.fs</code> Drive the Visual command-line program, implementing parallel opration and cacheing</li>
+<li><code>VTest.fs</code> Tests are the framework itself, and some sample assember tests</li>
+<li><code>VProgram.fs</code> Top-level code</li>
+</ul>
+<h2 id="code">Code</h2>
+<p>You can use VisualTest by incorporating the VisualTest source code directly in your project (in which case you must change the namespace to be the same as yours), or reconfigure this code as a library.</p>
+<p>For convenience it is possible to put multiple framework modules in one file. Just cut and paste the module definitions, keeping the same sequential module order.</p>
+<h2 id="dependencies">Dependencies</h2>
+<p>VisualInterface requires VisUAL to be <a href="https://salmanarif.bitbucket.io/visual/downloads.html">downloaded</a> and placed in a directory which is input as <code>paras.VisualPath</code>. Note that Visual is packaged with a portable version of Java which runs it.</p>
+<p>You are recommended to keep the directory structure in the example code.</p>
+<p>In theory the code will work on all platforms, but thus far it has only been tested on Windows.</p>
+<h2 id="operation">Operation</h2>
+<p>Normal operation is with cache on <code>paras.cached=true</code> because the cache mechanism is very robust. If anything goes wrong the cache will be recreated, which slows down operation, but does not affect results. Especially when testing tests, the cache saves considerable time.</p>
+<p>NB - property-based tests are random and therefore by default don’t get cached. You can specify the same random set each time by setting a seed in fsConfig, see the <code>VTest.fs</code> file.</p>
+<h2 id="status">Status</h2>
+<p>Basic operation as needed for data procesisng instructions (the main need for VisUAL is this) is tested. The memory read and write functionality in the testbench is experimental and not guaranteed to work. ask on Slack for more advanced usage.</p>
+</body>
+</html>

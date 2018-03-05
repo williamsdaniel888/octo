@@ -22,7 +22,7 @@ module CommonTop =
         | ERRTOPLEVEL of string
 
     /// Note that Instr in Mem and DP modules is NOT same as Instr in this module
-    /// Instr here is all possible isntruction values combines with a D.U.
+    /// Instr here is all possible instruction values combines with a D.U.
     /// that tags the Instruction class
     /// Similarly ErrInstr
     /// Similarly IMatch here is combination of module IMatches
@@ -67,9 +67,7 @@ module CommonTop =
             match pNoLabel, words with
             | Some pa, _ -> pa
             | None, label :: opc :: operands -> 
-                match { makeLineData opc operands 
-                        with Label=Some label} 
-                      |> IMatch with
+                match { makeLineData opc operands with Label=Some label} |> IMatch with
                 | None -> 
                     Error (ERRTOPLEVEL (sprintf "Unimplemented instruction %s" opc))
                 | Some pa -> pa
@@ -83,5 +81,5 @@ module CommonTop =
 module tester =
     open CommonTop
     open CommonData
-    /// test the initProjectLexer code
-    //let test = parseLine None (WA 0u)
+    //test parsing and evaluation
+    let test = parseLine None (WA 0u) ""
