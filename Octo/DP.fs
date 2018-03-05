@@ -336,19 +336,30 @@ module DP =
     let (|IMatch|_|) = parser
 
     // Update CSPR flags if necessary
-    let getFlags (res:int64) (isAdditive:bool) (oldMSBset:bool) = 
+    let getFlags (res:int64) (root:string) (op1MSBset:bool) = 
         let negative = if (0x80000000L &&& res)<>0L then true else false
         let zero = if res &&& 0xffffffffL = 0L then true else false
         let carry =
-            if isAdditive 
-                then 
-                    if res>=0x100000000L then true else false
-                else 
-                    if (res &&& 0x8000000000000000L <> 0L) then false else true
+            match root with
+            |"ADD" |"ADC" |"CMN" -> 
+                if res>=0x100000000L then true else false
+            |"SUB" |"SBC" |"CMP" |"RSB" |"RSC" -> 
+                if res>=0L then true else false
+                //if (res &&& 0x8000000000000000L <> 0L) then false else true
         let overflow = 
-            match oldMSBset with
-            |true -> if res&&&0x80000000L = 0L then true else false
-            |false -> if res&&&0x80000000L = 0L then false else true
+            match root with
+            |"ADD" |"ADC" |"CMN" -> 
+                match op1MSBset with
+                |true -> false
+                |false -> if res <= 0L then true else false
+            |"SUB" |"SBC" |"CMP" ->
+                match op1MSBset with
+                |true -> if res >= 0L then true else false
+                |false -> false
+            |"RSB" |"RSC" -> 
+                match op1MSBset with
+                |true -> if res <= 0L then true else false
+                |false -> false
         {N=negative;Z=zero;C=carry;V=overflow}
 
     // HOF for arithmetic functions
@@ -366,13 +377,12 @@ module DP =
                     |LiteralData (RC rc) -> (rc.K,rc.R) |> fun (lit,n) -> int64((lit >>> n) + (lit <<< 32-n))
                     |_ -> failwithf "Bad arguments"
                 |Error _-> failwithf "Bad arguments" 
-        //IN FIXING V FLAG, CHECK THAT INT64 RESULT = UINT32 RESULT
-        let op1MSBset = (op1' &&& 0x80000000L <> 0L)
-        let addness = if args.rt = "ADD" || args.rt = "ADC" || args.rt = "CMN" then true else false
+        let op1MSBset = op1' &&& 0x100000000L <>0L
+        let root = args.rt
         let result = bitOp op1' op2' state.Fl.C
         let flags' =
             if args.sf ="S"
-                then (getFlags result addness op1MSBset)
+                then (getFlags result root op1MSBset)
                 else state.Fl
         let regs' = 
             match dest' with

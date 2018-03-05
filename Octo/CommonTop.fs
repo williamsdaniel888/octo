@@ -78,8 +78,8 @@ module CommonTop =
         |> Array.toList
         |> matchLine
     
-module tester =
-    open CommonTop
-    open CommonData
-    //test parsing and evaluation
-    let test = parseLine None (WA 0u) ""
+//module tester =
+//    open CommonTop
+//    open CommonData
+//    //test parsing and evaluation
+//    let test = parseLine None (WA 0u) "ADDS R1,R2,R3; asdfjk"
