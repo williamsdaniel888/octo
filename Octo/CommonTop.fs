@@ -77,9 +77,60 @@ module CommonTop =
         |> splitIntoWords
         |> Array.toList
         |> matchLine
-    
-//module tester =
-//    open CommonTop
-//    open CommonData
-//    //test parsing and evaluation
-//    let test = parseLine None (WA 0u) "ADDS R1,R2,R3; asdfjk"
+
+    //Dan's code
+ 
+    let EMatch (state:DataPath<DP.Instr>) (ld: LineData) : Result<DataPath<DP.Instr>,DP.ErrInstr> option =
+        let pConv fr fe p = pResultInstrMap fr fe p |> Some
+        match ld with
+        | DP.IMatch pa -> 
+            pa
+            |> fun a -> {pd = (Some a); st = state}
+            |> eval
+            |> Some
+        | _ -> None
+
+    let evalLine (symtab: SymbolTable option) (loadAddr: WAddr) (asmLine:string) (state:DataPath<DP.Instr>) =
+        /// put parameters into a LineData record
+        let makeLineData opcode operands = {
+            OpCode=opcode
+            Operands=String.concat "" operands
+            Label=None
+            LoadAddr = loadAddr
+            SymTab = symtab
+        }
+        /// remove comments from string
+        let removeComment (txt:string) =
+            txt.Split(';')
+            |> function 
+                | [|x|] -> x 
+                | [||] -> "" 
+                | lineWithComment -> lineWithComment.[0]
+        /// split line on whitespace into an array
+        let splitIntoWords ( line:string ) =
+            line.Split( ([||] : char array), 
+                System.StringSplitOptions.RemoveEmptyEntries)
+        /// try to parse 1st word, or 2nd word, as opcode
+        /// If 2nd word is opcode 1st word must be label
+        let matchLine words =
+            let pNoLabel =
+                match words with
+                | opc :: operands -> 
+                    makeLineData opc operands 
+                    |> EMatch state
+                | _ -> None
+            match pNoLabel, words with
+            | Some pa, _ -> pa
+            | None, label :: opc :: operands -> 
+                match { makeLineData opc operands with Label=Some label} |> EMatch state with
+                | None -> 
+                    Error (sprintf "Unimplemented instruction %s" opc)
+                | Some pa -> pa
+            | _ -> Error (sprintf "Unimplemented instruction %A" words)
+        asmLine
+        |> removeComment
+        |> splitIntoWords
+        |> Array.toList
+        |> matchLine
+
+

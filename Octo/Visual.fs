@@ -1,7 +1,7 @@
-﻿namespace VisualTest
+﻿namespace Octo
 
 /// Code to run Visual from parallel expecto tests
-/// Ccaheing is also provided so that second time round tests run much faster
+/// Cacheing is also provided so that second time round tests run much faster
 module Visual =
     open VCommon
     open VLog

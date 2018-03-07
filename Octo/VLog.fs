@@ -1,4 +1,4 @@
-namespace VisualTest
+namespace Octo
 
 /// Code to read/write structured data from Visual log file (XML) and Cache files
 /// This does not use existing F# serialisers or type providers (that would do this nicely)

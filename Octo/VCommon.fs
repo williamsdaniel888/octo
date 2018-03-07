@@ -1,4 +1,4 @@
-﻿namespace VisualTest
+﻿namespace Octo
 /// common types and low-level functions
 /// provided for VisualTest Testbench
 module VCommon =

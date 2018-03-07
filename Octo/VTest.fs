@@ -1,4 +1,4 @@
-﻿namespace VisualTest
+﻿namespace Octo
 
 /// top-level code demonstrating how to run tests
 
@@ -10,6 +10,9 @@ module VTest =
     open Visual
     open System.Threading
     open System.IO
+    //open CommonData
+    open CommonLex
+    open DP
 
     /// parameters setting up the testing framework
     /// WARNING: PostludeLength must be changed if Postlude is changed
@@ -38,7 +41,6 @@ module VTest =
     
     
     /// run an expecto test of VisUAL
-    /// name - name of test
     ///
     let VisualUnitTest paras name src (flagsExpected:string) (outExpected: (Out * int) list) =
         testCase name <| fun () ->
@@ -112,27 +114,99 @@ module VTest =
                 System.Console.ReadKey() |> ignore
             flagsOK && regsOK
         match flags with
-        | {FN=true;FZ=true} -> true // prevent test with imposisble input
+        | {FN=true;FZ=true} -> true // prevent test with impossible input
         | _ -> performTest()
             
     let testParas = defaultParas
  
-
     let vTest = VisualUnitTest testParas
-
-
 
     /// to test the testbench, create many tests with assembler
     /// this is enough for each test to need being run separately
+    //For each function check that output flags and registers are correctly updated, 
+    type test_op = |ADD |ADC |SUB |SBC |RSB |RSC |CMP |CMN
     
-    let manyTests n = 
+    let literalTests n (p:test_op) (set_flags:bool)= 
         [0..n] 
         |> List.map (fun n -> 
             let n' = 1 + (n % 254)
-            vTest (sprintf "SUBS%d test" n') (sprintf "SUBS R0, R0, #%d" n') "1000" [R 0, -n'])
+            let op =
+                match p with
+                |ADD -> "ADD"
+                |ADC -> "ADC"
+                |SUB -> "SUB"
+                |SBC -> "SBC"
+                |RSB -> "RSB"
+                |RSC -> "RSC"
+                |CMP -> "CMP"
+                |CMN -> "CMN"
+                |> fun a ->
+                    match set_flags with 
+                    |true  -> a+"S"
+                    |false -> a
+            let test_id = op + sprintf "%d test" n'
+            let argIn = op + sprintf " R0, R0, #%d" n'
+            let stateIn: CommonData.DataPath<DP.Instr> = 
+                let flagsIn = 
+                    defaultParas.InitFlags 
+                    |> fun a -> 
+                        {
+                        CommonData.Flags.N = a.FN; 
+                        CommonData.Flags.Z=a.FZ; 
+                        CommonData.Flags.C = a.FC;
+                        CommonData.Flags.V = a.FV
+                        }
+                let regsIn = 
+                    [0..14]
+                    |> List.map (fun a -> CommonData.register a)
+                    |> List.map2 (fun a b -> b,a) defaultParas.InitRegs
+                    |> Map.ofList
+                let mmIn: CommonData.MachineMemory<DP.Instr> = 
+                    defaultParas.MemReadBase
+                    |> fun a -> [a..4u..a+(13u*4u)] 
+                    |> List.map (fun a -> CommonData.WA a) 
+                    |> fun b -> List.allPairs b [CommonData.DataLoc 0u] 
+                    |> Map.ofList
+                {Fl = flagsIn; Regs = regsIn; MM =  mmIn}
+            let simOut = CommonTop.evalLine None (CommonData.WA defaultParas.MemReadBase) argIn stateIn
+            let f_r_Out = 
+                simOut
+                |> Result.map (fun a ->
+                    let flOut =  //"1000" //get flag output from engine
+                        match a.Fl with
+                        |{N=false;Z=false;C=false;V=false} -> "0000"
+                        |{N=false;Z=false;C=false;V=true} -> "0001"
+                        |{N=false;Z=false;C=true;V=false} -> "0010"
+                        |{N=false;Z=false;C=true;V=true} -> "0011"
+                        |{N=false;Z=true;C=false;V=false} -> "0100"
+                        |{N=false;Z=true;C=false;V=true} -> "0101"
+                        |{N=false;Z=true;C=true;V=false} -> "0110"
+                        |{N=false;Z=true;C=true;V=true} -> "0111"
+                        |{N=true;Z=false;C=false;V=false} -> "1000"
+                        |{N=true;Z=false;C=false;V=true} -> "1001"
+                        |{N=true;Z=false;C=true;V=false} -> "1010"
+                        |{N=true;Z=false;C=true;V=true} -> "1011"
+                        |{N=true;Z=true;C=false;V=false} -> "1100"
+                        |{N=true;Z=true;C=false;V=true} -> "1101"
+                        |{N=true;Z=true;C=true;V=false} -> "1110"
+                        |{N=true;Z=true;C=true;V=true} -> "1111"
+                    let regOut = Map.find CommonData.R0 a.Regs |> fun a -> [R 0, int(a)] //[R 0, -n'] //get register output from engine
+                    flOut,regOut
+                    )
+            match f_r_Out with
+            |Ok a -> vTest test_id argIn (fst a) (snd a)
+            |_ -> failwithf "Error detected in evaluation engine"
+            )
 
     [<Tests>]
-    let many = testList "Many pointless tests" (manyTests 10)
+    let t_add = testList "Many pointless tests" (literalTests 20 ADD true)
+    [<Tests>]
+    let t_adds = testList "Many pointless tests" (literalTests 20 ADD false)
+    [<Tests>]
+    let t_sub = testList "Many pointless tests" (literalTests 20 SUB true)
+    [<Tests>]
+    let t_subs = testList "Many pointless tests" (literalTests 20 SUB false)
+
 
     [<Tests>]
     /// implements random property-based tests of the framework
@@ -156,7 +230,23 @@ module VTest =
             VisualFrameworkTest defaultParas
             vTest "SUB test" "SUB R0, R0, #1" "0000" [R 0, -1]
             vTest "SUBS test" "SUBS R0, R0, #0" "0110" [R 0, 0]
-            // vTest "This ADDS test should fail" "ADDS R0, R0, #4" "0000" [R 0, 4; R 1, 0] 
+            //vTest "This ADDS test should fail" "ADDS R0, R0, #4" "0000" [R 0, 4; R 1, 0] 
             // R1 should be 10 but is specified here as 0
             ]
+
+    /// configuration for this testing framework      
+    /// configuration for expecto. Note that by default tests will be run in parallel
+    /// this is set by the fields oif testParas above
+    let expectoConfig = { Expecto.Tests.defaultConfig with 
+                            parallel = testParas.Parallel
+                            parallelWorkers = 6 // try increasing this if CPU use is less than 100%
+                    }
+
+    [<EntryPoint>]
+    let main _ = 
+        initCaches testParas
+        let rc = runTestsInAssembly expectoConfig [||]
+        finaliseCaches testParas
+        System.Console.ReadKey() |> ignore                
+        rc // return an integer exit code - 0 if all tests pass
 

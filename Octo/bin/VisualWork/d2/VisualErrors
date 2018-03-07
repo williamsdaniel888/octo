@@ -1,0 +1,5 @@
+ line="21">Multiple labels on the same line.syntax error in
+:[|"<?xml version="1.0" encoding="UTF-8" standalone="no"?>";
+  "<VisUAL xmlns="http://bitbucket.org/salmanarif/visual">";
+  "    <syntax-error line="21">Multiple labels on the same line.</syntax-error>";
+  "</VisUAL>"|]
