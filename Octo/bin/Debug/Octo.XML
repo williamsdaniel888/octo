@@ -498,11 +498,9 @@ For individual project: chosen to be real address
  this is set by the fields oif testParas above
 </summary>
 </member>
-<member name="P:Octo.VTest.frametests">
+<member name="P:Octo.VTest.tests">
 <summary>
- implements random property-based tests of the framework
- tests that read/write of registers and flags is consistent for random
- input values
+Basic Register Tests (must do shifts)
 </summary>
 </member>
 <member name="M:Octo.VTest.VisualUnitTest(Octo.VCommon.Params,System.String,System.String,System.String,Microsoft.FSharp.Collections.FSharpList{System.Tuple{Octo.VCommon.Out,System.Int32}})">

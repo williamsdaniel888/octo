@@ -28,8 +28,11 @@ module DP =
     let allowedLiterals = 
         [0..2..30] 
         |> List.allPairs [0u..255u] 
-        |> List.map (fun (lit,n) -> ((lit >>> n) + (lit <<< 32-n)),(lit,n))
+        |> List.map (fun (lit,n) -> ((lit >>> n) + (lit <<< 32-n)),(lit,n)) //)|> List.sort
         |> Map.ofList
+    //let bad = [0u..255u] |> List.filter (fun n -> (List.contains n allowedLiterals)<>false)
+    //let p = Map.containsKey 65u allowedLiterals
+    //[0..256] |> List.filter (fun a -> Map.containsKey (uint32(a)) allowedLiterals)  
 
     //Verify whether a uint32 is a valid immediate
     let checkOp2Literal (imm: uint32) : Result<Op2,string> = 
@@ -336,7 +339,7 @@ module DP =
     let (|IMatch|_|) = parser
 
     // Update CSPR flags if necessary
-    let getFlags (res:int64) (root:string) (op1MSBset:bool) = 
+    let getFlags (res:int64) (root:string) (op1MSBset:bool) (bothOpsZ:bool) = 
         let negative = if (0x80000000L &&& res)<>0L then true else false
         let zero = if res &&& 0xffffffffL = 0L then true else false
         let carry =
@@ -351,7 +354,10 @@ module DP =
             |"ADD" |"ADC" |"CMN" -> 
                 match op1MSBset with
                 |true -> false
-                |false -> if res <= 0L then true else false
+                |false -> 
+                    if bothOpsZ
+                        then false
+                        else if res <= 0L then true else false
             |"SUB" |"SBC" |"CMP" ->
                 match op1MSBset with
                 |true -> if res >= 0L then true else false
@@ -382,7 +388,7 @@ module DP =
         let result = bitOp op1' op2' state.Fl.C
         let flags' =
             if args.sf ="S"
-                then (getFlags result root op1MSBset)
+                then (getFlags result root op1MSBset (op1'=0L && op2'=0L))
                 else state.Fl
         let regs' = 
             match dest' with
