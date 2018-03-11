@@ -129,153 +129,114 @@ module VTest =
     //For each function check that output flags and registers are correctly updated, 
     type test_op = |ADD |ADC |SUB |SBC |RSB |RSC |CMP |CMN
     
-    let op2Test_lit (m:int) (p:test_op) (set_flags:bool)= 
+    let createArgs (opcode:test_op) (set_flags:bool) (dest:string option) (op1:string) (op2:string) =
+        let op =
+            match opcode with
+            |ADD -> "ADD"
+            |ADC -> "ADC"
+            |SUB -> "SUB"
+            |SBC -> "SBC"
+            |RSB -> "RSB"
+            |RSC -> "RSC"
+            |CMP -> "CMP"
+            |CMN -> "CMN"
+            |> fun a ->
+                match set_flags with 
+                |true  -> a+"S"
+                |false -> a
+        let rd =  
+            match dest with 
+                |Some x -> sprintf "%s" x 
+                |None -> ""
+        op + sprintf " %s, %s, %s" rd op1 op2
+    
+    //need full namespace path due to "DP" keyword from commonLex
+    let stateIn: DataPathAndMem<Octo.DP.Instr> = 
+        let flagsIn = 
+            defaultParas.InitFlags 
+            |> fun a -> 
+                {
+                Flags.N = a.FN; 
+                Flags.Z = a.FZ; 
+                Flags.C = a.FC;
+                Flags.V = a.FV
+                }
+        let regsIn = 
+            [0..14]
+            |> List.map (fun a -> register a)
+            |> List.map2 (fun a b -> b,a) defaultParas.InitRegs
+            |> Map.ofList
+        let mmIn: MachineMemory<Octo.DP.Instr> = 
+            defaultParas.MemReadBase
+            |> fun a -> [a..4u..a+(13u*4u)] 
+            |> List.map (fun a -> WA a) 
+            |> fun b -> List.allPairs b [DataLoc 0u] 
+            |> Map.ofList
+        {Fl = flagsIn; Regs = regsIn; MM =  mmIn}
+
+    let tester (opcode:test_op) (set_flags:bool) (dest:string option) (op1:string) (op2:string)= 
+        let test_id =
+            match opcode with
+            |ADD -> "ADD"
+            |ADC -> "ADC"
+            |SUB -> "SUB"
+            |SBC -> "SBC"
+            |RSB -> "RSB"
+            |RSC -> "RSC"
+            |CMP -> "CMP"
+            |CMN -> "CMN"
+            |> fun a ->
+                match set_flags with 
+                |true  -> a+"S"
+                |false -> a
+            |> fun a -> a + sprintf " test with %s" op2
+        let argIn = createArgs opcode set_flags dest op1 op2
+        let evaluatedOutput = CommonTop.parseAndExecuteLine None (WA defaultParas.MemReadBase) argIn stateIn
+        let evaluatedFlagsReg = 
+            evaluatedOutput
+            |> Result.map (fun a ->
+                let flOut =  //"1000" //get flag output from engine
+                    match a.Fl with
+                    |{N=false;Z=false;C=false;V=false} -> "0000"
+                    |{N=false;Z=false;C=false;V=true} -> "0001"
+                    |{N=false;Z=false;C=true;V=false} -> "0010"
+                    |{N=false;Z=false;C=true;V=true} -> "0011"
+                    |{N=false;Z=true;C=false;V=false} -> "0100"
+                    |{N=false;Z=true;C=false;V=true} -> "0101"
+                    |{N=false;Z=true;C=true;V=false} -> "0110"
+                    |{N=false;Z=true;C=true;V=true} -> "0111"
+                    |{N=true;Z=false;C=false;V=false} -> "1000"
+                    |{N=true;Z=false;C=false;V=true} -> "1001"
+                    |{N=true;Z=false;C=true;V=false} -> "1010"
+                    |{N=true;Z=false;C=true;V=true} -> "1011"
+                    |{N=true;Z=true;C=false;V=false} -> "1100"
+                    |{N=true;Z=true;C=false;V=true} -> "1101"
+                    |{N=true;Z=true;C=true;V=false} -> "1110"
+                    |{N=true;Z=true;C=true;V=true} -> "1111"
+                let regOut = Map.find R0 a.Regs |> fun a -> [R 0, int(a)] //TODO: adapt to relevant dest or op1 register
+                flOut,regOut
+                )
+        match evaluatedFlagsReg with
+        |Ok a -> vTest test_id argIn (fst a) (snd a)
+        |Error e -> failwithf "Instruction: %s; Error Detected: %s" argIn e
+
+    let op2Test_lit (m:int) (opcode:test_op) (set_flags:bool)= 
         [0..m]
         |> List.filter (fun a -> Map.containsKey (uint32 (a)) allowedLiterals)
         |> List.map (fun n -> 
             let n' = (n % 256) //1+(n%254)
-            let op =
-                match p with
-                |ADD -> "ADD"
-                |ADC -> "ADC"
-                |SUB -> "SUB"
-                |SBC -> "SBC"
-                |RSB -> "RSB"
-                |RSC -> "RSC"
-                |CMP -> "CMP"
-                |CMN -> "CMN"
-                |> fun a ->
-                    match set_flags with 
-                    |true  -> a+"S"
-                    |false -> a
-            let test_id = op + sprintf "%d test" n'
-            let argIn = op + sprintf " R0, R0, #%d" n'
-
-            //need full namespace path due to "DP" keyword from commonLex
-            let stateIn: DataPathAndMem<Octo.DP.Instr> = 
-                let flagsIn = 
-                    defaultParas.InitFlags 
-                    |> fun a -> 
-                        {
-                        Flags.N = a.FN; 
-                        Flags.Z = a.FZ; 
-                        Flags.C = a.FC;
-                        Flags.V = a.FV
-                        }
-                let regsIn = 
-                    [0..14]
-                    |> List.map (fun a -> register a)
-                    |> List.map2 (fun a b -> b,a) defaultParas.InitRegs
-                    |> Map.ofList
-                let mmIn: MachineMemory<Octo.DP.Instr> = 
-                    defaultParas.MemReadBase
-                    |> fun a -> [a..4u..a+(13u*4u)] 
-                    |> List.map (fun a -> WA a) 
-                    |> fun b -> List.allPairs b [DataLoc 0u] 
-                    |> Map.ofList
-                {Fl = flagsIn; Regs = regsIn; MM =  mmIn}
-            let simOut = CommonTop.parseAndExecuteLine None (WA defaultParas.MemReadBase) argIn stateIn
-            let f_r_Out = 
-                simOut
-                |> Result.map (fun a ->
-                    let flOut =  //"1000" //get flag output from engine
-                        match a.Fl with
-                        |{N=false;Z=false;C=false;V=false} -> "0000"
-                        |{N=false;Z=false;C=false;V=true} -> "0001"
-                        |{N=false;Z=false;C=true;V=false} -> "0010"
-                        |{N=false;Z=false;C=true;V=true} -> "0011"
-                        |{N=false;Z=true;C=false;V=false} -> "0100"
-                        |{N=false;Z=true;C=false;V=true} -> "0101"
-                        |{N=false;Z=true;C=true;V=false} -> "0110"
-                        |{N=false;Z=true;C=true;V=true} -> "0111"
-                        |{N=true;Z=false;C=false;V=false} -> "1000"
-                        |{N=true;Z=false;C=false;V=true} -> "1001"
-                        |{N=true;Z=false;C=true;V=false} -> "1010"
-                        |{N=true;Z=false;C=true;V=true} -> "1011"
-                        |{N=true;Z=true;C=false;V=false} -> "1100"
-                        |{N=true;Z=true;C=false;V=true} -> "1101"
-                        |{N=true;Z=true;C=true;V=false} -> "1110"
-                        |{N=true;Z=true;C=true;V=true} -> "1111"
-                    let regOut = Map.find R0 a.Regs |> fun a -> [R 0, int(a)] //[R 0, -n'] //get register output from engine
-                    flOut,regOut
-                    )
-            match f_r_Out with
-            |Ok a -> vTest test_id argIn (fst a) (snd a)
-            |Error e -> failwithf "Error detected with literal input %d: %s" n' e
+            let op2 = sprintf "#%d" n'
+            tester opcode set_flags (Some "R0") "R0" op2 //TODO: allow all permutations of dest,r1,r2
             )
 
-    let op2Test_reg (p:test_op) (set_flags:bool)= 
+    let op2Test_reg (opcode:test_op) (set_flags:bool)= 
         [0..12] @ [14]
         |> List.map (fun n -> 
-            let op =
-                match p with
-                |ADD -> "ADD"
-                |ADC -> "ADC"
-                |SUB -> "SUB"
-                |SBC -> "SBC"
-                |RSB -> "RSB"
-                |RSC -> "RSC"
-                |CMP -> "CMP"
-                |CMN -> "CMN"
-                |> fun a ->
-                    match set_flags with 
-                    |true  -> a+"S"
-                    |false -> a
-            let test_id = op + sprintf " R%d test" n
-            let argIn = op + sprintf " R0, R0, R%d" n
-            let stateIn: DataPathAndMem<Octo.DP.Instr> = 
-                let flagsIn = 
-                    defaultParas.InitFlags 
-                    |> fun a -> 
-                        {
-                        Flags.N = a.FN; 
-                        Flags.Z = a.FZ; 
-                        Flags.C = a.FC;
-                        Flags.V = a.FV
-                        }
-                let regsIn = 
-                    [0..14]
-                    |> List.map (fun a -> register a)
-                    |> List.map2 (fun a b -> b,a) defaultParas.InitRegs
-                    |> Map.ofList
-                let mmIn: MachineMemory<Octo.DP.Instr> = 
-                    defaultParas.MemReadBase
-                    |> fun a -> [a..4u..a+(13u*4u)] 
-                    |> List.map (fun a -> WA a) 
-                    |> fun b -> List.allPairs b [DataLoc 0u] 
-                    |> Map.ofList
-                {Fl = flagsIn; Regs = regsIn; MM =  mmIn}
-            let simOut = CommonTop.parseAndExecuteLine None (WA defaultParas.MemReadBase) argIn stateIn
-            let f_r_Out = 
-                simOut
-                |> Result.map (fun a ->
-                    let flOut =  //"1000" //get flag output from engine
-                        match a.Fl with
-                        |{N=false;Z=false;C=false;V=false} -> "0000"
-                        |{N=false;Z=false;C=false;V=true} -> "0001"
-                        |{N=false;Z=false;C=true;V=false} -> "0010"
-                        |{N=false;Z=false;C=true;V=true} -> "0011"
-                        |{N=false;Z=true;C=false;V=false} -> "0100"
-                        |{N=false;Z=true;C=false;V=true} -> "0101"
-                        |{N=false;Z=true;C=true;V=false} -> "0110"
-                        |{N=false;Z=true;C=true;V=true} -> "0111"
-                        |{N=true;Z=false;C=false;V=false} -> "1000"
-                        |{N=true;Z=false;C=false;V=true} -> "1001"
-                        |{N=true;Z=false;C=true;V=false} -> "1010"
-                        |{N=true;Z=false;C=true;V=true} -> "1011"
-                        |{N=true;Z=true;C=false;V=false} -> "1100"
-                        |{N=true;Z=true;C=false;V=true} -> "1101"
-                        |{N=true;Z=true;C=true;V=false} -> "1110"
-                        |{N=true;Z=true;C=true;V=true} -> "1111"
-                    let regOut = Map.find R0 a.Regs |> fun a -> [R 0, int(a)] //[R 0, -n'] //get register output from engine
-                    flOut,regOut
-                    )
-            match f_r_Out with
-            |Ok a -> vTest test_id argIn (fst a) (snd a)
-            |Error e -> failwithf "Error detected: %s" e
+            let op2 = sprintf "R%d" n
+            tester opcode set_flags (Some "R0") "R0" op2 //TODO: allow all permutations of dest,r1,r2
             )
     
-    let runVisUALIncrTests = false
+    let runVisUALIncrTests = true
 
     
     // //Basic Literal Tests (must do outside [0,255])
@@ -286,22 +247,22 @@ module VTest =
             testList "ALL DP Instructions" [
                 testList "All DP Instructions Literal Tests"  [
                     testList "All ADD SubClass Instructions" [
-                        testList "Literal test with ADD" (op2Test_lit 255 ADD true)
-                        testList "Literal test with ADDS" (op2Test_lit 255 ADD false)
-                        testList "Literal test with ADC" (op2Test_lit 255 ADC true)
-                        testList "Literal test with ADCS" (op2Test_lit 255 ADC false)
+                        testList "Literal test with ADD" (op2Test_lit 2 ADD true)
+                        testList "Literal test with ADDS" (op2Test_lit 2 ADD false)
+                        testList "Literal test with ADC" (op2Test_lit 2 ADC true)
+                        testList "Literal test with ADCS" (op2Test_lit 2 ADC false)
                     ]
                     testList "All SUB SubClass Instructions" [
-                        testList "Literal test with SUB" (op2Test_lit 255 SUB true)
-                        testList "Literal test with SUBS" (op2Test_lit 255 SUB false)
-                        testList "Literal test with SBC" (op2Test_lit 255 SBC true)
-                        testList "Literal test with SBCS" (op2Test_lit 255 SBC false)
+                        testList "Literal test with SUB" (op2Test_lit 2 SUB true)
+                        testList "Literal test with SUBS" (op2Test_lit 2 SUB false)
+                        testList "Literal test with SBC" (op2Test_lit 2 SBC true)
+                        testList "Literal test with SBCS" (op2Test_lit 2 SBC false)
                     ]
                     testList "All RSB SubClass Instructions" [
-                        testList "Literal test with RSB" (op2Test_lit 255 RSB true)
-                        testList "Literal test with RSBS" (op2Test_lit 255 RSB false)
-                        testList "Literal test with RSC" (op2Test_lit 255 RSC true)
-                        testList "Literal test with RSCS" (op2Test_lit 255 RSC false)
+                        testList "Literal test with RSB" (op2Test_lit 2 RSB true)
+                        testList "Literal test with RSBS" (op2Test_lit 2 RSB false)
+                        testList "Literal test with RSC" (op2Test_lit 2 RSC true)
+                        testList "Literal test with RSCS" (op2Test_lit 2 RSC false)
                     ]
                 ]
                 testList "All DP Instructions Register Tests" [
@@ -309,19 +270,19 @@ module VTest =
                         testList "Register test with ADD" (op2Test_reg ADD true)
                         testList "Register test with ADDS" (op2Test_reg ADD false)
                         testList "Register test with ADC" (op2Test_reg ADC true)
-                        testList "Register test with ADCS" (op2Test_lit 255 ADC false)
+                        testList "Register test with ADCS" (op2Test_reg ADC false)
                     ]
                     testList "All SUB SubClass Instructions" [
                         testList "Register test with SUB" (op2Test_reg SUB true)
                         testList "Register test with SUBS" (op2Test_reg SUB false)
                         testList "Register test with SBC" (op2Test_reg SBC true)
-                        testList "Register test with SBCS" (op2Test_lit 255 SBC false)
+                        testList "Register test with SBCS" (op2Test_reg SBC false)
                     ]
                     testList "All RSB SubClass Instructions" [
                         testList "Register test with RSB" (op2Test_reg RSB true)
                         testList "Register test with RSBS" (op2Test_reg RSB false)
                         testList "Register test with RSC" (op2Test_reg RSC true)
-                        testList "Register test with RSCS" (op2Test_lit 255 RSC false)
+                        testList "Register test with RSCS" (op2Test_reg RSC false)
                     ]
                 ]
             ]
@@ -349,8 +310,8 @@ module VTest =
         testList "Minimal Visual Unit Tests"
             [
             VisualFrameworkTest defaultParas
-            vTest "SUB test" "SUB R0, R0, #1" "0010" [R 0, -1]
-            vTest "SUBS test" "SUBS R0, R0, #0" "0110" [R 0, 0]
+            //vTest "SUB test" "SUB R0, R0, #1" "0010" [R 0, -1]
+            //vTest "SUBS test" "SUBS R0, R0, #0" "0110" [R 0, 0]
             //vTest "This ADDS test should fail" "ADDS R0, R0, #4" "0000" [R 0, 4; R 1, 0] 
             // R1 should be 10 but is specified here as 0
             ]

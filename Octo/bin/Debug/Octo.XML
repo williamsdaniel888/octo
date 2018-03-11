@@ -2,132 +2,210 @@
 <doc>
 <assembly><name>Octo</name></assembly>
 <members>
-<member name="T:Octo.CommonData.DataPath`1">
+<member name="M:EEExtensions.MapModule.Keys``2(Microsoft.FSharp.Collections.FSharpMap{``0,``1})">
 <summary>
- ARM state as values of all registers and status bits
- NB PC can be found as R15 - 8. (Pipelining)
+ Return array of all keys in table
 </summary>
 </member>
-<member name="T:Octo.CommonData.MachineMemory`1">
+<member name="M:EEExtensions.MapModule.Values``2(Microsoft.FSharp.Collections.FSharpMap{``0,``1})">
 <summary>
- type to represent memory
+ Return array of all values in table
 </summary>
 </member>
-<member name="T:Octo.CommonData.WAddr">
+<member name="M:EEExtensions.MapModule.FindWithDefault``2(``0,Microsoft.FSharp.Collections.FSharpMap{``0,``1},``1)">
 <summary>
- type to represent a (word) address
- there is some ambiguity. Does this contain the real address
- which is always divisible by 4
- or does it contain the word number (real address divided by 4)
- either way multiply/divide by 4 will cause problems!
- document this well and be consistent.
-For individual project: chosen to be real address
+ Looks up key in table, returning defaultValue if 
+ key is not in table
 </summary>
 </member>
-<member name="T:Octo.CommonData.MemLoc`1">
+<member name="M:EEExtensions.ReflectModule.enumerateSimpleCases``1">
 <summary>
- Type to represent the contents of one memory location
- &apos;INS is a parameter set to the type of an instruction
- needed because instruction type is only defined
- at top level.
+ Returns array of all elements in D.U. &apos;T
+ &apos;T must be a D.U. with one element tags
 </summary>
 </member>
-<member name="P:Octo.CommonData.RName.RegNum">
+<member name="M:EEExtensions.StringModule.RegexMatch(System.String,System.String)">
 <summary>
- Return the number of a register as an integer
+ Match a regular expression
+ Return Some (m,grps) where m is the match string,
+ grps is the list of match groups (if any)
+ return None on no match
 </summary>
 </member>
-<member name="T:Octo.CommonData.RName">
+<member name="M:EEExtensions.StringModule.TrimEnd(System.Char[],System.String)">
 <summary>
- ARM register names
- NB R15 is the program counter as read
+ Remove all trailing whitespace    
 </summary>
 </member>
-<member name="T:Octo.CommonData.Flags">
+<member name="M:EEExtensions.StringModule.TrimStart(System.Char[],System.String)">
 <summary>
- ARM Status bits
+ Remove all leading whitespace
 </summary>
 </member>
-<member name="M:Octo.CommonData.register(System.Int32)">
+<member name="M:EEExtensions.StringModule.TrimChars(System.Char[],System.String)">
 <summary>
- Return a register name from an integer
+ Remove all leading and trailing chars in trimChars
 </summary>
 </member>
-<member name="P:Octo.CommonData.inverseRegNums">
+<member name="M:EEExtensions.StringModule.Trim(System.String)">
 <summary>
- Map converts register number into RName (no aliasses)
+ Remove all leading and training whitespace
 </summary>
 </member>
-<member name="P:Octo.CommonData.regNums">
+<member name="M:EEExtensions.StringModule.Substring(System.Int32,System.String)">
 <summary>
- Map converts RName into register number (no aliasses)
+ Return str from startIndex till end
+ Throw ArgumentOutOfRange exception if startWith
+ lies outside str
 </summary>
 </member>
-<member name="P:Octo.CommonData.regStrings">
+<member name="M:EEExtensions.StringModule.SubstringLength(System.Int32,System.Int32,System.String)">
 <summary>
- Inverse of regNames, used to convert RName values to strings
- NB The string chosen will always be the register (not alias)
+ Return substring of str at startIndex of length chars
+ Throw ArgumentOutOfRange exception if any part of
+ selected string lies outside str.
 </summary>
 </member>
-<member name="P:Octo.CommonData.regNames">
+<member name="M:EEExtensions.StringModule.StartsWith(System.String,System.String)">
 <summary>
- Map used to convert strings into RName values, 
- includes register aliasses PC, LR, SP
+ Return true if str starts with value
 </summary>
 </member>
-<member name="P:Octo.CommonLex.LineData.Operands">
+<member name="M:EEExtensions.StringModule.SplitStringRemoveEmptyEntries(System.String[],System.String)">
+<summary>
+ Split str at all of separator string array elements
+ Return array of strings
+ Adjacent separators do not generate strings
+</summary>
+</member>
+<member name="M:EEExtensions.StringModule.SplitString(System.String[],System.String)">
+<summary>
+ Split str at all of separator string array elements
+ Return array of strings
+ Adjacent separators generate empty strings
+</summary>
+</member>
+<member name="M:EEExtensions.StringModule.SplitRemoveEmptyEntries(System.Char[],System.String)">
+<summary>
+ Split str at all of separator array elements
+ Return array of strings
+ Adjacent separators do not generate strings   
+</summary>
+</member>
+<member name="M:EEExtensions.StringModule.Split(System.Char[],System.String)">
+<summary>
+ Split str at all of separator array elements
+ Return array of strings
+ Adjacent separators generate empty strings
+</summary>
+</member>
+<member name="M:EEExtensions.StringModule.Replace(System.String,System.String,System.String)">
+<summary>
+ Replace all occurences of oldValue by newValue
+</summary>
+</member>
+<member name="M:EEExtensions.StringModule.ReplaceChar(System.Char,System.Char,System.String)">
+<summary>
+ Replace all occurences of oldChar by newchar
+</summary>
+</member>
+<member name="M:EEExtensions.StringModule.LastIndexOf(System.String,System.String)">
+<summary>
+ Returns Some (last index of value in str)
+ Or None if value is not in str
+</summary>
+</member>
+<member name="M:EEExtensions.StringModule.IndexOf(System.String,System.String)">
+<summary>
+ Returns Some(first index of value in str)
+ Or None if value is not found in str       
+</summary>
+</member>
+<member name="M:EEExtensions.StringModule.Equals(System.StringComparison,System.String,System.String)">
+<summary>
+ See String.Equals
+</summary>
+</member>
+<member name="M:EEExtensions.StringModule.EndsWith(System.String,System.String)">
+<summary>
+ True if str ends with value
+</summary>
+</member>
+<member name="M:EEExtensions.StringModule.Contains(System.String,System.String)">
+<summary>
+ True if str contains value
+</summary>
+</member>
+<member name="M:EEExtensions.StringModule.Concat(System.String,System.Collections.Generic.IEnumerable{System.String})">
+<summary>
+ Concatenate a sequence of strings
+ Using sep as separator
+</summary>
+</member>
+<member name="M:EEExtensions.StringModule.SplitOnWhitespace(System.String)">
+<summary>
+ splits text into its array of non-whitepace strings separated by whitespace
+</summary>
+</member>
+<member name="T:EEExtensions.StringModule">
+<summary>
+ Miscellaneous extensions to core F# library functions
+ Additions to String, Map
+</summary>
+</member>
+<member name="P:Common.CommonLex.LineData.Operands">
 <summary>
  string of all the operands
 </summary>
 </member>
-<member name="P:Octo.CommonLex.LineData.OpCode">
+<member name="P:Common.CommonLex.LineData.OpCode">
 <summary>
  opcode string
 </summary>
 </member>
-<member name="P:Octo.CommonLex.LineData.SymTab">
+<member name="P:Common.CommonLex.LineData.SymTab">
 <summary>
  table of symbols with defined values. 
  if this is given we are phase 2 and all symbols should be defined
  if this is not given we are phase 1 and no symbols are defined
 </summary>
 </member>
-<member name="P:Octo.CommonLex.LineData.Label">
+<member name="P:Common.CommonLex.LineData.Label">
 <summary>
  name of label defined on this line, if one exists
 </summary>
 </member>
-<member name="P:Octo.CommonLex.LineData.LoadAddr">
+<member name="P:Common.CommonLex.LineData.LoadAddr">
 <summary>
- memory address this instruction is loaded from? Must be word address
+ memory address this instruction is loaded. Must be word address
 </summary>
 </member>
-<member name="T:Octo.CommonLex.LineData">
+<member name="T:Common.CommonLex.LineData">
 <summary>
  data given to instruction-specific parse function
 </summary>
 </member>
-<member name="P:Octo.CommonLex.Parse`1.PCond">
+<member name="P:Common.CommonLex.Parse`1.PCond">
 <summary>
  execution condition for instruction
 </summary>
 </member>
-<member name="P:Octo.CommonLex.Parse`1.PSize">
+<member name="P:Common.CommonLex.Parse`1.PSize">
 <summary>
  number of bytes in memory taken up by this instruction
 </summary>
 </member>
-<member name="P:Octo.CommonLex.Parse`1.PLabel">
+<member name="P:Common.CommonLex.Parse`1.PLabel">
 <summary>
  name and value of label defined on this line, if one is.
 </summary>
 </member>
-<member name="P:Octo.CommonLex.Parse`1.PInstr">
+<member name="P:Common.CommonLex.Parse`1.PInstr">
 <summary>
  value representing instruction. NB type varies with instruction class
 </summary>
 </member>
-<member name="T:Octo.CommonLex.Parse`1">
+<member name="T:Common.CommonLex.Parse`1">
 <summary>
  result returned from instruction-specific module parsing
  an instruction class. If symbol definitions are found in a 
@@ -135,46 +213,118 @@ For individual project: chosen to be real address
  otherwise some fields will be None
 </summary>
 </member>
-<member name="T:Octo.CommonLex.OpSpec">
+<member name="T:Common.CommonLex.OpSpec">
 <summary>
  specification of set of instructions
 </summary>
 </member>
-<member name="T:Octo.CommonLex.InstrClass">
+<member name="T:Common.CommonLex.InstrClass">
 <summary>
  classes of instructions (example, add/change this is needed)
 </summary>
 </member>
-<member name="T:Octo.CommonLex.Condition">
+<member name="T:Common.CommonLex.Condition">
 <summary>
  ARM execution conditions
 </summary>
 </member>
-<member name="M:Octo.CommonLex.pResultInstrMap``4(Microsoft.FSharp.Core.FSharpFunc{``0,``1},Microsoft.FSharp.Core.FSharpFunc{``2,``3},Microsoft.FSharp.Core.FSharpResult{Octo.CommonLex.Parse{``0},``2})">
+<member name="M:Common.CommonLex.pResultInstrMap``4(Microsoft.FSharp.Core.FSharpFunc{``0,``1},Microsoft.FSharp.Core.FSharpFunc{``2,``3},Microsoft.FSharp.Core.FSharpResult{Common.CommonLex.Parse{``0},``2})">
 <summary>
  function used to change PInstr field of a Result&lt;Parse&lt;&apos;INS&gt;,&apos;E&gt;
  the output has this field mapped with fMap
- or if Error has this value changed by fMapE
+ or if Error has this value chnaged by fMapE
 </summary>
 </member>
-<member name="M:Octo.CommonLex.opCodeExpand(Octo.CommonLex.OpSpec)">
+<member name="M:Common.CommonLex.opCodeExpand(Common.CommonLex.OpSpec)">
 <summary>
  generate all possible opcode strings for given specification
  each string is paired with info about instruction
  and the three parts of the opcode
 </summary>
 </member>
-<member name="P:Octo.CommonLex.condStrings">
+<member name="P:Common.CommonLex.condStrings">
 <summary>
  list of all strings representing execution conditions
  includes &quot;&quot;
 </summary>
 </member>
-<member name="P:Octo.CommonLex.condMap">
+<member name="P:Common.CommonLex.condMap">
 <summary>
  Strings with corresponding execution condition
  Note some conditions have multiple strings
  Note &quot;&quot; is a valid condition string (always execute condition)
+</summary>
+</member>
+<member name="T:Common.CommonData.MachineMemory`1">
+<summary>
+ type to represent memory
+</summary>
+</member>
+<member name="T:Common.CommonData.WAddr">
+<summary>
+ type to represent a (word) address
+ there is some ambiguity. Does this contain the real address
+ which is always divisible by 4
+ or does it contain the word number (real address dvided by 4)
+ either way multiply/divide by 4 will cause problems!
+ document this well and be consistent.
+</summary>
+</member>
+<member name="T:Common.CommonData.MemLoc`1">
+<summary>
+ Type to represent the contents of one memory location
+ &apos;INS is a parameter set to the type of an instruction
+ needed because instruction type is only defined
+ at top level.
+</summary>
+</member>
+<member name="T:Common.CommonData.DataPath">
+<summary>
+ ARM state as values of all registers and status bits
+ NB PC can be found as R15 - 8. (Pipelining)
+</summary>
+</member>
+<member name="P:Common.CommonData.RName.RegNum">
+<summary>
+ Return the number of a register as an integer
+</summary>
+</member>
+<member name="T:Common.CommonData.RName">
+<summary>
+ ARM register names
+ NB R15 is the program counter as read
+</summary>
+</member>
+<member name="T:Common.CommonData.Flags">
+<summary>
+ ARM Status bits
+</summary>
+</member>
+<member name="M:Common.CommonData.register(System.Int32)">
+<summary>
+ Return a register name from an integer
+</summary>
+</member>
+<member name="P:Common.CommonData.inverseRegNums">
+<summary>
+ Map converts register number into RName (no aliasses)
+</summary>
+</member>
+<member name="P:Common.CommonData.regNums">
+<summary>
+ Map converts RName into register number (no aliasses)
+</summary>
+</member>
+<member name="P:Common.CommonData.regStrings">
+<summary>
+ Inverse of regNames, used to convert RName values to strings
+ NB The string chosen will always be the register (not alias)
+</summary>
+</member>
+<member name="P:Common.CommonData.regNames">
+<summary>
+ Map used to convert strings into RName values, 
+ includes register aliasses PC, LR, SP
 </summary>
 </member>
 <member name="T:Octo.DP.RotConstant">
@@ -188,7 +338,7 @@ For individual project: chosen to be real address
  Evaluate a parsed instruction of unknown validity
 </summary>
 </member>
-<member name="M:Octo.DP.parser(Octo.CommonLex.LineData)">
+<member name="M:Octo.DP.parser(Common.CommonLex.LineData)">
 <summary>
  parser: LineData -&gt; Result&lt;Parse&lt;Instr&gt;,ErrInstr&gt; option
  A function to parse a line of assembler
@@ -198,76 +348,116 @@ For individual project: chosen to be real address
  otherwise it is Ok Parse or Error (parse error string)
 </summary>
 </member>
-<member name="T:Octo.Memory.ErrInstr">
+<member name="M:Memory.Tests.splitIntoWords(System.String)">
 <summary>
- parse error (dummy, but will do)
+ split line on whitespace into an array
 </summary>
 </member>
-<member name="T:Octo.Memory.Instr">
+<member name="M:Memory.Tests.removeComment(System.String)">
 <summary>
- instruction (dummy: must change)
+ remove comments from string
 </summary>
 </member>
-<member name="P:Octo.Memory.|IMatch|_|">
+<member name="T:Memory.Tests">
 <summary>
- Parse Active Pattern used by top-level code
+ **************Test MODULE For Memory*******
 </summary>
 </member>
-<member name="M:Octo.Memory.parse(Octo.CommonLex.LineData)">
+<member name="T:Memory.Memory.Token">
 <summary>
  main function to parse a line of assembler
- ls contains the line input
+ ld contains the line input
  and other state needed to generate output
  the result is None if the opcode does not match
  otherwise it is Ok Parse or Error (parse error string)
 </summary>
 </member>
-<member name="P:Octo.Memory.opCodes">
+<member name="T:Memory.Memory.ErrInstr">
+<summary>
+ parse error (dummy, but will do)
+</summary>
+</member>
+<member name="T:Memory.Memory.Operand">
+<summary>
+ instruction (dummy: must change) MUSTTTT
+</summary>
+</member>
+<member name="T:Memory.Memory.AddrScheme">
+<summary>
+ sample specification for set of instructions
+</summary>
+</member>
+<member name="T:Memory.Memory.Literal">
+<summary>
+ literal value = (K % 256) rotated right by (R % 16)*2
+</summary>
+</member>
+<member name="M:Memory.Memory.execute(Common.CommonLex.Parse{Memory.Memory.Instr},Microsoft.FSharp.Collections.FSharpMap{Common.CommonData.WAddr,Common.CommonData.MemLoc{Memory.Memory.Instr}},Common.CommonData.DataPath)">
+<summary>
+main execute stage
+</summary>
+</member>
+<member name="P:Memory.Memory.|IMatch|_|">
+<summary>
+ Parse Active Pattern used by top-level code
+</summary>
+</member>
+<member name="M:Memory.Memory.tokenize(System.String)">
+<summary>
+ Repeatedly calls nextToken
+ to do lexical analysis
+</summary>
+</member>
+<member name="M:Memory.Memory.nextToken(Memory.Memory.LexData)">
+<summary>
+ Returns next token Option, and new state, given state lData
+ If it returns None for token, with a changed state
+ It will be called again with new state
+ It must never be called with Txt=&quot;&quot;
+</summary>
+</member>
+<member name="P:Memory.Memory.opCodes">
 <summary>
  map of all possible opcodes recognised
 </summary>
 </member>
-<member name="T:Octo.CommonTop.ErrInstr">
+<member name="T:Memory.Memory">
+<summary>
+ ***************MEMORY MODULE ***************
+</summary>
+</member>
+<member name="T:CommonTop.CommonTop.ErrInstr">
 <summary>
  allows different modules to return different error info
  by default all return string so this is not needed
 </summary>
 </member>
-<member name="T:Octo.CommonTop.Instr">
+<member name="T:CommonTop.CommonTop.Instr">
 <summary>
  allows different modules to return different instruction types
 </summary>
 </member>
-<member name="M:Octo.CommonTop.IMatch(Octo.CommonLex.LineData)">
-<summary>
- Note that Instr in Mem and DP modules is NOT same as Instr in this module
- Instr here is all possible instruction values combines with a D.U.
- that tags the Instruction class
- Similarly ErrInstr
- Similarly IMatch here is combination of module IMatches
-</summary>
-</member>
-<member name="T:Octo.VCommon.VisOutput">
+<member name="T:VisualTest.VCommon.VisOutput">
 <summary>
  info output by Visual
 </summary>
 </member>
-<member name="T:Octo.VCommon.VisState">
+<member name="T:VisualTest.VCommon.VisState">
 <summary>
  additional info extracted from Visual outputs by postlude.
 </summary>
 </member>
-<member name="P:Octo.VCommon.Params.Prelude">
+<member name="P:VisualTest.VCommon.Params.Prelude">
 <summary>
  temporary data used to construct assembler
 </summary>
 </member>
-<member name="P:Octo.VCommon.Params.InitRegs">
+<member name="P:VisualTest.VCommon.Params.InitRegs">
 <summary>
  instructions to control inputs and outputs
 </summary>
 </member>
-<member name="T:Octo.VCommon.Params">
+<member name="T:VisualTest.VCommon.Params">
 <summary>
  configuration data for running VisUAL
  &apos;D is DataPath type - used to make initial Datapth value equal to
@@ -275,29 +465,29 @@ For individual project: chosen to be real address
  &apos;R is type of register names
 </summary>
 </member>
-<member name="T:Octo.VCommon.Out">
+<member name="T:VisualTest.VCommon.Out">
 <summary>
  register name used for visual output
 </summary>
 </member>
-<member name="T:Octo.VCommon.Flags">
+<member name="T:VisualTest.VCommon.Flags">
 <summary>
  ARM Flags output from Visual run using postlude code via a register
 </summary>
 </member>
-<member name="T:Octo.VCommon">
+<member name="T:VisualTest.VCommon">
 <summary>
  common types and low-level functions
  provided for VisualTest Testbench
 </summary>
 </member>
-<member name="M:Octo.VData.decodeStateFromRegs(Microsoft.FSharp.Collections.FSharpList{System.Tuple{Octo.VCommon.Out,System.Int32}})">
+<member name="M:VisualTest.VData.decodeStateFromRegs(Microsoft.FSharp.Collections.FSharpList{System.Tuple{VisualTest.VCommon.Out,System.Int32}})">
 <summary>
  processes after-postlude registers to extract additional state info
  as determined by postlude. E.g. flags from the standard postlude
 </summary>
 </member>
-<member name="M:Octo.VData.GETWRAPPER(Microsoft.FSharp.Collections.FSharpList{System.UInt32},Octo.VCommon.Flags,System.UInt32)">
+<member name="M:VisualTest.VData.GETWRAPPER(Microsoft.FSharp.Collections.FSharpList{System.UInt32},VisualTest.VCommon.Flags,System.UInt32)">
 <summary>
  Construct wrapper code for simulation
  regs, flags: init values of regs, flags
@@ -308,123 +498,123 @@ For individual project: chosen to be real address
  n is length of postlude
 </summary>
 </member>
-<member name="M:Octo.VData.POSTLUDE(System.UInt32)">
+<member name="M:VisualTest.VData.POSTLUDE(System.UInt32)">
 <summary>
  Construct postlude assembly code
  memBase: base addr of memory locs read by postlude
 </summary>
 </member>
-<member name="M:Octo.VData.READMEMORY(System.UInt32)">
+<member name="M:VisualTest.VData.READMEMORY(System.UInt32)">
 <summary>
  Read memBase..memBase+13 into R1..R14
  uses R13 as temporary register
 </summary>
 </member>
-<member name="P:Octo.VData.READFLAGSINTOR0">
+<member name="P:VisualTest.VData.READFLAGSINTOR0">
 <summary>
  Read NZCV into bits 3210 of R0
 </summary>
 </member>
-<member name="M:Octo.VData.SETALLREGS(Microsoft.FSharp.Collections.FSharpList{System.UInt32})">
+<member name="M:VisualTest.VData.SETALLREGS(Microsoft.FSharp.Collections.FSharpList{System.UInt32})">
 <summary>
  Generates assembler which Sets registers R0-R14
  from the supplied list of values
  RegVals must be of length 15
 </summary>
 </member>
-<member name="M:Octo.VData.STORELOC(System.UInt32,System.UInt32)">
+<member name="M:VisualTest.VData.STORELOC(System.UInt32,System.UInt32)">
 <summary>
  Generates assembler to store mDat in memory location mAddr
  Uses R0 and R2 as temporary registers
 </summary>
 </member>
-<member name="M:Octo.VData.LOADLOC(System.Int32,System.UInt32)">
+<member name="M:VisualTest.VData.LOADLOC(System.Int32,System.UInt32)">
 <summary>
  Generates assembler which
  loads memory location mAddr into register reg
 </summary>
 </member>
-<member name="M:Octo.VData.SETFLAGS(Octo.VCommon.Flags)">
+<member name="M:VisualTest.VData.SETFLAGS(VisualTest.VCommon.Flags)">
 <summary>
  Generates assembler which sets flags to value given by fl.        
  Uses R0 as temporary register
 </summary>
 </member>
-<member name="M:Octo.VData.SETREG(System.Int32,System.UInt32)">
+<member name="M:VisualTest.VData.SETREG(System.Int32,System.UInt32)">
 <summary>
  Generates assembler to set Reg n to value u.
 </summary>
 </member>
-<member name="M:Octo.VLog.appendCacheItem(System.String,System.String,Octo.VCommon.VisOutput)">
+<member name="M:VisualTest.VLog.appendCacheItem(System.String,System.String,VisualTest.VCommon.VisOutput)">
 <summary>
  add a single new item to the result cache
  scr: assembly source run
  outs: visual result info
 </summary>
 </member>
-<member name="M:Octo.VLog.readCache(System.String)">
+<member name="M:VisualTest.VLog.readCache(System.String)">
 <summary>
  read the entire cache from disk into a Map
  coalesce multiple identical entries
  cacheF: path of cache file on disk
 </summary>
 </member>
-<member name="M:Octo.VLog.readRegs(System.String)">
+<member name="M:VisualTest.VLog.readRegs(System.String)">
 <summary>
  inverse of writeRegs
 </summary>
 </member>
-<member name="M:Octo.VLog.writeRegs(Microsoft.FSharp.Collections.FSharpList{System.Tuple{Octo.VCommon.Out,System.Int32}})">
+<member name="M:VisualTest.VLog.writeRegs(Microsoft.FSharp.Collections.FSharpList{System.Tuple{VisualTest.VCommon.Out,System.Int32}})">
 <summary>
  write a specified set of output registers (not all) to a log file
  flags can be written as a pseudo-register (see Out type defn)
  in which case they are written as register no -1
 </summary>
 </member>
-<member name="M:Octo.VLog.readEscaped(System.String)">
+<member name="M:VisualTest.VLog.readEscaped(System.String)">
 <summary>
  inverse of writeEscaped
 </summary>
 </member>
-<member name="M:Octo.VLog.writeEscaped(System.String)">
+<member name="M:VisualTest.VLog.writeEscaped(System.String)">
 <summary>
  translate a text string for a custom log file escaping @ and &apos;\n&apos;
  those characters are used to delimit log entries
 </summary>
 </member>
-<member name="M:Octo.VLog.readVisualLog(System.Int32,System.String[])">
+<member name="M:VisualTest.VLog.readVisualLog(System.Int32,System.String[])">
 <summary>
  Read an entire VisUAL log parsing it.
  Todo: reimplement using sequences and array reader for higher efficiency
  The cache size could be very large
 </summary>
 </member>
-<member name="P:Octo.VLog.rgxRuntimeError">
+<member name="P:VisualTest.VLog.rgxRuntimeError">
 <summary>
  detect runtime error from visual log line
 </summary>
 </member>
-<member name="P:Octo.VLog.rgxSyntaxError">
+<member name="P:VisualTest.VLog.rgxSyntaxError">
 <summary>
  Detect syntax error from Visual log line
 </summary>
 </member>
-<member name="P:Octo.VLog.rgxReg">
+<member name="P:VisualTest.VLog.rgxReg">
 <summary>
  detect register output from Visual log line
 </summary>
 </member>
-<member name="P:Octo.VLog.|MATCH|_|">
+<member name="P:VisualTest.VLog.|MATCH|_|">
 <summary>
  To do regex matching via pattern
 </summary>
 </member>
-<member name="M:Octo.VLog.regexMatch(System.String,System.String)">
+<member name="M:VisualTest.VLog.regexMatch(System.String,System.String)">
 <summary>
  used to parse log files using regex strings (primitive)
 </summary>
 </member>
-<member name="T:Octo.VLog">
+<member name="T:VisualTest.VLog">
 <summary>
  Code to read/write structured data from Visual log file (XML) and Cache files
  This does not use existing F# serialisers or type providers (that would do this nicely)
@@ -434,82 +624,77 @@ For individual project: chosen to be real address
  no effort has been put into making this code general or maintainable
 </summary>
 </member>
-<member name="M:Octo.Visual.finaliseCaches(Octo.VCommon.Params)">
+<member name="M:VisualTest.Visual.finaliseCaches(VisualTest.VCommon.Params)">
 <summary>
  flush caches writing all info to global cache
  called after all VisUAL processes have terminated
 </summary>
 </member>
-<member name="M:Octo.Visual.initCaches(Octo.VCommon.Params)">
+<member name="M:VisualTest.Visual.initCaches(VisualTest.VCommon.Params)">
 <summary>
  initialise caches and semaphores for correct cached parallel operation
  called before any VisuAL process is started
 </summary>
 </member>
-<member name="M:Octo.Visual.strToFlags(System.String)">
+<member name="M:VisualTest.Visual.strToFlags(System.String)">
 <summary>
  convenience function, convert 4 char string to NZCV status flag record
 </summary>
 </member>
-<member name="M:Octo.Visual.RunVisualWithFlagsOut(Octo.VCommon.Params,System.String)">
+<member name="M:VisualTest.Visual.RunVisualWithFlagsOut(VisualTest.VCommon.Params,System.String)">
 <summary>
  Adds postlude to assembly code to detect flags values.
  Returns flags , registers (before flag detection code)
 </summary>
 </member>
-<member name="M:Octo.Visual.RunVisual(Octo.VCommon.Params,System.String)">
+<member name="M:VisualTest.Visual.RunVisual(VisualTest.VCommon.Params,System.String)">
 <summary>
  top-level run Visual function
 </summary>
 </member>
-<member name="M:Octo.Visual.RunVisualBaseWithLocksCached(Octo.VCommon.Params,System.String)">
+<member name="M:VisualTest.Visual.RunVisualBaseWithLocksCached(VisualTest.VCommon.Params,System.String)">
 <summary>
  all-purpose Visual test run, with parallel execution and cacheing supported
 </summary>
 </member>
-<member name="M:Octo.Visual.UpdateCache(System.Int32,Octo.VCommon.Params,System.String,Microsoft.FSharp.Core.FSharpResult{Octo.VCommon.VisOutput,Microsoft.FSharp.Collections.FSharpList{System.String}})">
+<member name="M:VisualTest.Visual.UpdateCache(System.Int32,VisualTest.VCommon.Params,System.String,Microsoft.FSharp.Core.FSharpResult{VisualTest.VCommon.VisOutput,Microsoft.FSharp.Collections.FSharpList{System.String}})">
 <summary>
  update global cacahe on disk with items in worker-local cache in memory
 </summary>
 </member>
-<member name="M:Octo.Visual.RunVisualBase(Octo.VCommon.Params,System.String)">
+<member name="M:VisualTest.Visual.RunVisualBase(VisualTest.VCommon.Params,System.String)">
 <summary>
  run VisUAL via a separate command line process on source src
  returns output info as a list of registers and flags
  also returns register values after postlude
 </summary>
 </member>
-<member name="T:Octo.Visual">
+<member name="T:VisualTest.Visual">
 <summary>
  Code to run Visual from parallel expecto tests
- Cacheing is also provided so that second time round tests run much faster
+ Ccaheing is also provided so that second time round tests run much faster
 </summary>
 </member>
-<member name="T:Octo.VTest.test_op">
+<member name="T:VisualTest.VTest.test_op">
 <summary>
  to test the testbench, create many tests with assembler
  this is enough for each test to need being run separately
 </summary>
 </member>
-<member name="P:Octo.VTest.expectoConfig">
+<member name="P:VisualTest.VTest.frametests">
 <summary>
- configuration for this testing framework      
- configuration for expecto. Note that by default tests will be run in parallel
- this is set by the fields oif testParas above
+ implements random property-based tests of the framework
+ tests that read/write of registers and flags is consistent for random
+ input values
 </summary>
 </member>
-<member name="P:Octo.VTest.tests">
-<summary>
-Basic Register Tests (must do shifts)
-</summary>
-</member>
-<member name="M:Octo.VTest.VisualUnitTest(Octo.VCommon.Params,System.String,System.String,System.String,Microsoft.FSharp.Collections.FSharpList{System.Tuple{Octo.VCommon.Out,System.Int32}})">
+<member name="M:VisualTest.VTest.VisualUnitTest(VisualTest.VCommon.Params,System.String,System.String,System.String,Microsoft.FSharp.Collections.FSharpList{System.Tuple{VisualTest.VCommon.Out,System.Int32}})">
 <summary>
  run an expecto test of VisUAL
 
 </summary>
 </member>
-<member name="P:Octo.VTest.defaultParas">
+<member name="P:VisualTest.VTest.defaultParas">
 <summary>
  parameters setting up the testing framework
  WARNING: PostludeLength must be changed if Postlude is changed
@@ -519,9 +704,16 @@ Basic Register Tests (must do shifts)
  Simulation reads VisUAL log and returns registers after test assembly code, and also after postlude
 </summary>
 </member>
-<member name="T:Octo.VTest">
+<member name="T:VisualTest.VTest">
 <summary>
  top-level code demonstrating how to run tests
+</summary>
+</member>
+<member name="P:VisualTest.VProgram.expectoConfig">
+<summary>
+ configuration for this testing framework      
+ configuration for expecto. Note that by default tests will be run in parallel
+ this is set by the fields oif testParas above
 </summary>
 </member>
 </members>
