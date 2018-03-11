@@ -1,4 +1,4 @@
-﻿namespace Octo
+﻿namespace VisualTest
 
 module VData =
 

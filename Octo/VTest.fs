@@ -1,7 +1,8 @@
-﻿namespace Octo
+﻿namespace VisualTest
 
 /// top-level code demonstrating how to run tests
 
+open CommonTop
 module VTest =
 
     open Expecto
@@ -10,9 +11,10 @@ module VTest =
     open Visual
     open System.Threading
     open System.IO
-    //open CommonData
-    open CommonLex
-    open DP
+    open Common.CommonData //Most of code access commondata
+    open Common.CommonLex
+    open CommonTop
+    open Octo.DP
 
     /// parameters setting up the testing framework
     /// WARNING: PostludeLength must be changed if Postlude is changed
@@ -84,7 +86,7 @@ module VTest =
          r.R8;r.R9;r.R10;r.R11;r.R12;r.R13;r.R14]
       
 
-    let VisualFrameworkRun (regs: rType,flags:Flags) =
+    let VisualFrameworkRun (regs: rType,flags:VCommon.Flags) =
         let performTest() =
             let initRegs = 
                 rType2List regs
@@ -148,29 +150,31 @@ module VTest =
                     |false -> a
             let test_id = op + sprintf "%d test" n'
             let argIn = op + sprintf " R0, R0, #%d" n'
-            let stateIn: CommonData.DataPath<DP.Instr> = 
+
+            //need full namespace path due to "DP" keyword from commonLex
+            let stateIn: DataPathAndMem<Octo.DP.Instr> = 
                 let flagsIn = 
                     defaultParas.InitFlags 
                     |> fun a -> 
                         {
-                        CommonData.Flags.N = a.FN; 
-                        CommonData.Flags.Z=a.FZ; 
-                        CommonData.Flags.C = a.FC;
-                        CommonData.Flags.V = a.FV
+                        Flags.N = a.FN; 
+                        Flags.Z = a.FZ; 
+                        Flags.C = a.FC;
+                        Flags.V = a.FV
                         }
                 let regsIn = 
                     [0..14]
-                    |> List.map (fun a -> CommonData.register a)
+                    |> List.map (fun a -> register a)
                     |> List.map2 (fun a b -> b,a) defaultParas.InitRegs
                     |> Map.ofList
-                let mmIn: CommonData.MachineMemory<DP.Instr> = 
+                let mmIn: MachineMemory<Octo.DP.Instr> = 
                     defaultParas.MemReadBase
                     |> fun a -> [a..4u..a+(13u*4u)] 
-                    |> List.map (fun a -> CommonData.WA a) 
-                    |> fun b -> List.allPairs b [CommonData.DataLoc 0u] 
+                    |> List.map (fun a -> WA a) 
+                    |> fun b -> List.allPairs b [DataLoc 0u] 
                     |> Map.ofList
                 {Fl = flagsIn; Regs = regsIn; MM =  mmIn}
-            let simOut = CommonTop.evalLine None (CommonData.WA defaultParas.MemReadBase) argIn stateIn
+            let simOut = CommonTop.parseAndExecuteLine None (WA defaultParas.MemReadBase) argIn stateIn
             let f_r_Out = 
                 simOut
                 |> Result.map (fun a ->
@@ -192,7 +196,7 @@ module VTest =
                         |{N=true;Z=true;C=false;V=true} -> "1101"
                         |{N=true;Z=true;C=true;V=false} -> "1110"
                         |{N=true;Z=true;C=true;V=true} -> "1111"
-                    let regOut = Map.find CommonData.R0 a.Regs |> fun a -> [R 0, int(a)] //[R 0, -n'] //get register output from engine
+                    let regOut = Map.find R0 a.Regs |> fun a -> [R 0, int(a)] //[R 0, -n'] //get register output from engine
                     flOut,regOut
                     )
             match f_r_Out with
@@ -219,29 +223,29 @@ module VTest =
                     |false -> a
             let test_id = op + sprintf " R%d test" n
             let argIn = op + sprintf " R0, R0, R%d" n
-            let stateIn: CommonData.DataPath<DP.Instr> = 
+            let stateIn: DataPathAndMem<Octo.DP.Instr> = 
                 let flagsIn = 
                     defaultParas.InitFlags 
                     |> fun a -> 
                         {
-                        CommonData.Flags.N = a.FN; 
-                        CommonData.Flags.Z = a.FZ; 
-                        CommonData.Flags.C = a.FC;
-                        CommonData.Flags.V = a.FV
+                        Flags.N = a.FN; 
+                        Flags.Z = a.FZ; 
+                        Flags.C = a.FC;
+                        Flags.V = a.FV
                         }
                 let regsIn = 
                     [0..14]
-                    |> List.map (fun a -> CommonData.register a)
+                    |> List.map (fun a -> register a)
                     |> List.map2 (fun a b -> b,a) defaultParas.InitRegs
                     |> Map.ofList
-                let mmIn: CommonData.MachineMemory<DP.Instr> = 
+                let mmIn: MachineMemory<Octo.DP.Instr> = 
                     defaultParas.MemReadBase
                     |> fun a -> [a..4u..a+(13u*4u)] 
-                    |> List.map (fun a -> CommonData.WA a) 
-                    |> fun b -> List.allPairs b [CommonData.DataLoc 0u] 
+                    |> List.map (fun a -> WA a) 
+                    |> fun b -> List.allPairs b [DataLoc 0u] 
                     |> Map.ofList
                 {Fl = flagsIn; Regs = regsIn; MM =  mmIn}
-            let simOut = CommonTop.evalLine None (CommonData.WA defaultParas.MemReadBase) argIn stateIn
+            let simOut = CommonTop.parseAndExecuteLine None (WA defaultParas.MemReadBase) argIn stateIn
             let f_r_Out = 
                 simOut
                 |> Result.map (fun a ->
@@ -263,7 +267,7 @@ module VTest =
                         |{N=true;Z=true;C=false;V=true} -> "1101"
                         |{N=true;Z=true;C=true;V=false} -> "1110"
                         |{N=true;Z=true;C=true;V=true} -> "1111"
-                    let regOut = Map.find CommonData.R0 a.Regs |> fun a -> [R 0, int(a)] //[R 0, -n'] //get register output from engine
+                    let regOut = Map.find R0 a.Regs |> fun a -> [R 0, int(a)] //[R 0, -n'] //get register output from engine
                     flOut,regOut
                     )
             match f_r_Out with
@@ -271,72 +275,73 @@ module VTest =
             |Error e -> failwithf "Error detected: %s" e
             )
     
-    ///Basic Literal Tests (must do outside [0,255])
-    //[<Tests>]
-    //let t_add = testList "Literal test with ADD" (op2Test_lit 255 ADD true)
-    //[<Tests>]
-    //let t_adds = testList "Literal test with ADDS" (op2Test_lit 255 ADD false)
-    //[<Tests>]
-    //let t_adc = testList "Literal test with ADC" (op2Test_lit 255 ADC true)
-    //[<Tests>]
-    //let t_adcs = testList "Literal test with ADCS" (op2Test_lit 255 ADC false)
-    //[<Tests>]
-    //let t_sub = testList "Literal test with SUB" (op2Test_lit 255 SUB true)
-    //[<Tests>]
-    //let t_subs = testList "Literal test with SUBS" (op2Test_lit 255 SUB false)
-    //[<Tests>]
-    //let t_sbc = testList "Literal test with SBC" (op2Test_lit 255 SBC true)
-    //[<Tests>]
-    //let t_sbcs = testList "Literal test with SBCS" (op2Test_lit 255 SBC false)
-    //[<Tests>]
-    //let t_rsb = testList "Literal test with RSB" (op2Test_lit 255 RSB true)
-    //[<Tests>]
-    //let t_rsbs = testList "Literal test with RSBS" (op2Test_lit 255 RSB false)
-    //[<Tests>]
-    //let t_rsc = testList "Literal test with RSC" (op2Test_lit 255 RSC true)
-    //[<Tests>]
-    //let t_rscs = testList "Literal test with RSCS" (op2Test_lit 255 RSC false)
+    let runVisUALIncrTests = false
 
-    ///Basic Register Tests (must do shifts)
-    //[<Tests>]
-    //let t_add_r = testList "Register test with ADD" (op2Test_reg ADD true)
-    //[<Tests>]
-    //let t_adds_r = testList "Register test with ADDS" (op2Test_reg ADD false)
-    //[<Tests>]
-    //let t_adc_r = testList "Register test with ADC" (op2Test_reg ADC true)
-    //[<Tests>]
-    //let t_adcs_r = testList "Register test with ADCS" (op2Test_reg ADC false)
-    //[<Tests>]
-    //let t_sub_r = testList "Register test with SUB" (op2Test_reg SUB true)
-    //[<Tests>]
-    //let t_subs_r = testList "Register test with SUBS" (op2Test_reg SUB false)
-    //[<Tests>]
-    //let t_sbc_r = testList "Register test with SBC" (op2Test_reg SBC true)
-    //[<Tests>]
-    //let t_sbcs_r = testList "Register test with SBCS" (op2Test_reg SBC false)
-    //[<Tests>]
-    //let t_rsb_r = testList "Register test with RSB" (op2Test_reg RSB true)
-    //[<Tests>]
-    //let t_rsbs_r = testList "Register test with RSBS" (op2Test_reg RSB false)
-    //[<Tests>]
-    //let t_rsc_r = testList "Register test with RSC" (op2Test_reg RSC true)
-    //[<Tests>]
-    //let t_rscs_r = testList "Register test with RSCS" (op2Test_reg RSC false)
+    
+    // //Basic Literal Tests (must do outside [0,255])
+    [<Tests>]
+    let allIncrTests =
+        match runVisUALIncrTests with
+        | true ->
+            testList "ALL DP Instructions" [
+                testList "All DP Instructions Literal Tests"  [
+                    testList "All ADD SubClass Instructions" [
+                        testList "Literal test with ADD" (op2Test_lit 255 ADD true)
+                        testList "Literal test with ADDS" (op2Test_lit 255 ADD false)
+                        testList "Literal test with ADC" (op2Test_lit 255 ADC true)
+                        testList "Literal test with ADCS" (op2Test_lit 255 ADC false)
+                    ]
+                    testList "All SUB SubClass Instructions" [
+                        testList "Literal test with SUB" (op2Test_lit 255 SUB true)
+                        testList "Literal test with SUBS" (op2Test_lit 255 SUB false)
+                        testList "Literal test with SBC" (op2Test_lit 255 SBC true)
+                        testList "Literal test with SBCS" (op2Test_lit 255 SBC false)
+                    ]
+                    testList "All RSB SubClass Instructions" [
+                        testList "Literal test with RSB" (op2Test_lit 255 RSB true)
+                        testList "Literal test with RSBS" (op2Test_lit 255 RSB false)
+                        testList "Literal test with RSC" (op2Test_lit 255 RSC true)
+                        testList "Literal test with RSCS" (op2Test_lit 255 RSC false)
+                    ]
+                ]
+                testList "All DP Instructions Register Tests" [
+                    testList "All ADD SubClass Instructions" [
+                        testList "Register test with ADD" (op2Test_reg ADD true)
+                        testList "Register test with ADDS" (op2Test_reg ADD false)
+                        testList "Register test with ADC" (op2Test_reg ADC true)
+                        testList "Register test with ADCS" (op2Test_lit 255 ADC false)
+                    ]
+                    testList "All SUB SubClass Instructions" [
+                        testList "Register test with SUB" (op2Test_reg SUB true)
+                        testList "Register test with SUBS" (op2Test_reg SUB false)
+                        testList "Register test with SBC" (op2Test_reg SBC true)
+                        testList "Register test with SBCS" (op2Test_lit 255 SBC false)
+                    ]
+                    testList "All RSB SubClass Instructions" [
+                        testList "Register test with RSB" (op2Test_reg RSB true)
+                        testList "Register test with RSBS" (op2Test_reg RSB false)
+                        testList "Register test with RSC" (op2Test_reg RSC true)
+                        testList "Register test with RSCS" (op2Test_lit 255 RSC false)
+                    ]
+                ]
+            ]
+        | false -> testList "EmptyTestList" []
+    
 
 
-    //[<Tests>]
-    ///// implements random property-based tests of the framework
-    ///// tests that read/write of registers and flags is consistent for random
-    ///// input values
-    //let frametests =        
-    //    let fsConfig = {
-    //            FsCheckConfig.defaultConfig with
-    //                replay = Some (0,0) // seed for RNG. Means that the same tests are done each run
-    //                                    // replace by None for a random time-based seed and therefore
-    //                                    // new tests each time that will not cache
-    //                maxTest = 100       // number of random tests
-    //            }
-    //    testPropertyWithConfig fsConfig "Flags and registers are preserved" VisualFrameworkRun
+    [<Tests>]
+    /// implements random property-based tests of the framework
+    /// tests that read/write of registers and flags is consistent for random
+    /// input values
+    let frametests =        
+       let fsConfig = {
+               FsCheckConfig.defaultConfig with
+                   replay = Some (0,0) // seed for RNG. Means that the same tests are done each run
+                                       // replace by None for a random time-based seed and therefore
+                                       // new tests each time that will not cache
+                   maxTest = 100       // number of random tests
+               }
+       testPropertyWithConfig fsConfig "Flags and registers are preserved" VisualFrameworkRun
 
 
     [<Tests>]
@@ -349,20 +354,4 @@ module VTest =
             //vTest "This ADDS test should fail" "ADDS R0, R0, #4" "0000" [R 0, 4; R 1, 0] 
             // R1 should be 10 but is specified here as 0
             ]
-
-    /// configuration for this testing framework      
-    /// configuration for expecto. Note that by default tests will be run in parallel
-    /// this is set by the fields oif testParas above
-    let expectoConfig = { Expecto.Tests.defaultConfig with 
-                            parallel = testParas.Parallel
-                            parallelWorkers = 6 // try increasing this if CPU use is less than 100%
-                    }
-
-    [<EntryPoint>]
-    let main _ = 
-        initCaches testParas
-        let rc = runTestsInAssembly expectoConfig [||]
-        finaliseCaches testParas
-        System.Console.ReadKey() |> ignore                
-        rc // return an integer exit code - 0 if all tests pass
 

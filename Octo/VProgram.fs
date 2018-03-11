@@ -1,4 +1,4 @@
-﻿namespace Octo
+﻿namespace VisualTest
 module VProgram =
 
     open Expecto
@@ -16,7 +16,7 @@ module VProgram =
     /// this is set by the fields oif testParas above
     let expectoConfig = { Expecto.Tests.defaultConfig with 
                             parallel = testParas.Parallel
-                            parallelWorkers = 6 // try increasing this if CPU use is less than 100%
+                            parallelWorkers = 2 // try increasing this if CPU use is less than 100%
                     }
 
     [<EntryPoint>]

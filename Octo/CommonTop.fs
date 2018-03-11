@@ -1,96 +1,46 @@
+﻿// Learn more about F# at http://fsharp.org
+namespace CommonTop
+
 ////////////////////////////////////////////////////////////////////////////////////
 //      Code defined at top level after the instruction processing modules
 ////////////////////////////////////////////////////////////////////////////////////
-namespace Octo
+
+
 module CommonTop =
-    
-    open CommonData
-    open CommonLex
-    open DP
+
+    open Common.CommonLex
+    open Common.CommonData
     open Memory
+    open Octo
 
     /// allows different modules to return different instruction types
     type Instr =
         | IMEM of Memory.Instr
-        | IDP of DP.Instr
     
     /// allows different modules to return different error info
     /// by default all return string so this is not needed
     type ErrInstr =
         | ERRIMEM of Memory.ErrInstr
-        | ERRIDP of DP.ErrInstr
         | ERRTOPLEVEL of string
-
-    /// Note that Instr in Mem and DP modules is NOT same as Instr in this module
-    /// Instr here is all possible instruction values combines with a D.U.
-    /// that tags the Instruction class
-    /// Similarly ErrInstr
-    /// Similarly IMatch here is combination of module IMatches
-    let IMatch (ld: LineData) : Result<Parse<Instr>,ErrInstr> option =
-        let pConv fr fe p = pResultInstrMap fr fe p |> Some
-        match ld with
-        | Memory.IMatch pa -> pConv IMEM ERRIMEM pa
-        | DP.IMatch pa -> pConv IDP ERRIDP pa
-        | _ -> None
+    
+    
 
     type CondInstr = Condition * Instr
-
-    let parseLine (symtab: SymbolTable option) (loadAddr: WAddr) (asmLine:string) =
-        /// put parameters into a LineData record
-        let makeLineData opcode operands = {
-            OpCode=opcode
-            Operands=String.concat "" operands
-            Label=None
-            LoadAddr = loadAddr
-            SymTab = symtab
-        }
-        /// remove comments from string
-        let removeComment (txt:string) =
-            txt.Split(';')
-            |> function 
-                | [|x|] -> x 
-                | [||] -> "" 
-                | lineWithComment -> lineWithComment.[0]
-        /// split line on whitespace into an array
-        let splitIntoWords ( line:string ) =
-            line.Split( ([||] : char array), 
-                System.StringSplitOptions.RemoveEmptyEntries)
-        /// try to parse 1st word, or 2nd word, as opcode
-        /// If 2nd word is opcode 1st word must be label
-        let matchLine words =
-            let pNoLabel =
-                match words with
-                | opc :: operands -> 
-                    makeLineData opc operands 
-                    |> IMatch
-                | _ -> None
-            match pNoLabel, words with
-            | Some pa, _ -> pa
-            | None, label :: opc :: operands -> 
-                match { makeLineData opc operands with Label=Some label} |> IMatch with
-                | None -> 
-                    Error (ERRTOPLEVEL (sprintf "Unimplemented instruction %s" opc))
-                | Some pa -> pa
-            | _ -> Error (ERRTOPLEVEL (sprintf "Unimplemented instruction %A" words))
-        asmLine
-        |> removeComment
-        |> splitIntoWords
-        |> Array.toList
-        |> matchLine
-
-    //Dan's code
- 
-    let EMatch (state:DataPath<DP.Instr>) (ld: LineData) : Result<DataPath<DP.Instr>,DP.ErrInstr> option =
+    
+    //main IMATCH fn and parseAndEval fn
+    (* *)
+    (* THIS ONLY WORKS FOR DP ATM*)
+    let IMatch (state:DataPathAndMem<DP.Instr>) (ld: LineData) : Result<DataPathAndMem<DP.Instr>,DP.ErrInstr> option =
         let pConv fr fe p = pResultInstrMap fr fe p |> Some
         match ld with
         | DP.IMatch pa -> 
             pa
-            |> fun a -> {pd = (Some a); st = state}
-            |> eval
+            |> fun a -> {DP.pd = (Some a); DP.st = state}
+            |> DP.eval
             |> Some
         | _ -> None
 
-    let evalLine (symtab: SymbolTable option) (loadAddr: WAddr) (asmLine:string) (state:DataPath<DP.Instr>) =
+    let parseAndExecuteLine (symtab: SymbolTable option) (loadAddr: WAddr) (asmLine:string) (state:DataPathAndMem<DP.Instr>) =
         /// put parameters into a LineData record
         let makeLineData opcode operands = {
             OpCode=opcode
@@ -117,12 +67,12 @@ module CommonTop =
                 match words with
                 | opc :: operands -> 
                     makeLineData opc operands 
-                    |> EMatch state
+                    |> IMatch state
                 | _ -> None
             match pNoLabel, words with
             | Some pa, _ -> pa
             | None, label :: opc :: operands -> 
-                match { makeLineData opc operands with Label=Some label} |> EMatch state with
+                match { makeLineData opc operands with Label=Some label} |> IMatch state with
                 | None -> 
                     Error (sprintf "Unimplemented instruction %s" opc)
                 | Some pa -> pa
@@ -133,4 +83,22 @@ module CommonTop =
         |> Array.toList
         |> matchLine
 
+////////////////////////////////////////////////////////////////////////////////////
+//      Code defined for top-level testing
+////////////////////////////////////////////////////////////////////////////////////
 
+module CommonTest =
+    open Expecto
+    //TODO:
+
+
+////////////////////////////////////////////////////////////////////////////////////
+//      Code defined to execute top-level tests
+////////////////////////////////////////////////////////////////////////////////////
+
+module CommonTestExecute =
+    open Expecto
+
+    (*OUR MAIN ENTRY POINT, TODO: MAKE THIS THE ONLY ENTRY POINT*)
+    //[<EntryPoint>]
+    //Tests.runTestsInAssembly Tests.defaultConfig [||] |> ignore
