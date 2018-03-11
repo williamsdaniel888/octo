@@ -146,9 +146,9 @@ module VTest =
                 |false -> a
         let rd =  
             match dest with 
-                |Some x -> sprintf "%s" x 
+                |Some x -> sprintf " %s," x 
                 |None -> ""
-        op + sprintf " %s, %s, %s" rd op1 op2
+        op + sprintf "%s %s, %s" rd op1 op2
     
     //need full namespace path due to "DP" keyword from commonLex
     let stateIn: DataPathAndMem<Octo.DP.Instr> = 
@@ -174,23 +174,23 @@ module VTest =
             |> Map.ofList
         {Fl = flagsIn; Regs = regsIn; MM =  mmIn}
 
-    let tester (opcode:test_op) (set_flags:bool) (dest:string option) (op1:string) (op2:string)= 
-        let test_id =
-            match opcode with
-            |ADD -> "ADD"
-            |ADC -> "ADC"
-            |SUB -> "SUB"
-            |SBC -> "SBC"
-            |RSB -> "RSB"
-            |RSC -> "RSC"
-            |CMP -> "CMP"
-            |CMN -> "CMN"
-            |> fun a ->
-                match set_flags with 
-                |true  -> a+"S"
-                |false -> a
-            |> fun a -> a + sprintf " test with %s" op2
+    let testEngine (opcode:test_op) (set_flags:bool) (dest:string option) (op1:string) (op2:string)= 
         let argIn = createArgs opcode set_flags dest op1 op2
+        let test_id = argIn
+            //match opcode with
+            //|ADD -> "ADD"
+            //|ADC -> "ADC"
+            //|SUB -> "SUB"
+            //|SBC -> "SBC"
+            //|RSB -> "RSB"
+            //|RSC -> "RSC"
+            //|CMP -> "CMP"
+            //|CMN -> "CMN"
+            //|> fun a ->
+            //    match set_flags with 
+            //    |true  -> a+"S"
+            //    |false -> a
+            //|> fun a -> a + sprintf " test with %s" op2
         let evaluatedOutput = CommonTop.parseAndExecuteLine None (WA defaultParas.MemReadBase) argIn stateIn
         let evaluatedFlagsReg = 
             evaluatedOutput
@@ -213,28 +213,49 @@ module VTest =
                     |{N=true;Z=true;C=false;V=true} -> "1101"
                     |{N=true;Z=true;C=true;V=false} -> "1110"
                     |{N=true;Z=true;C=true;V=true} -> "1111"
-                let regOut = Map.find R0 a.Regs |> fun a -> [R 0, int(a)] //TODO: adapt to relevant dest or op1 register
+                let regOut = 
+                    //Map.find R1 a.Regs |> fun a -> [R 1, int(a)]
+                    match opcode with
+                    |CMP |CMN -> Map.find R0 a.Regs |> fun a -> [R 0, int(a)] //TODO: adapt to relevant dest or op1 register
+                    |_ ->
+                        match dest with
+                        |Some x -> 
+                            let rd = Map.find x regNames
+                            let rd_number = Map.find rd regNums
+                            Map.find rd a.Regs |> fun a -> [R rd_number, int(a)]
+                        |None -> failwithf "Destination register is missing"
                 flOut,regOut
                 )
         match evaluatedFlagsReg with
         |Ok a -> vTest test_id argIn (fst a) (snd a)
         |Error e -> failwithf "Instruction: %s; Error Detected: %s" argIn e
 
-    let op2Test_lit (m:int) (opcode:test_op) (set_flags:bool)= 
+    //TODO: allow all permutations of dest,r1,r2; include Shifts
+     //TODO: allow for full range of literals and negative immediates, not just [0,256]
+    let DP_test_lit (m:int) (opcode:test_op) (set_flags:bool)= 
         [0..m]
         |> List.filter (fun a -> Map.containsKey (uint32 (a)) allowedLiterals)
         |> List.map (fun n -> 
-            let n' = (n % 256) //1+(n%254)
+            let n' = (n % 256)
             let op2 = sprintf "#%d" n'
-            tester opcode set_flags (Some "R0") "R0" op2 //TODO: allow all permutations of dest,r1,r2
+            testEngine opcode set_flags (Some "R0") "R0" op2 
             )
 
-    let op2Test_reg (opcode:test_op) (set_flags:bool)= 
-        [0..12] @ [14]
-        |> List.map (fun n -> 
-            let op2 = sprintf "R%d" n
-            tester opcode set_flags (Some "R0") "R0" op2 //TODO: allow all permutations of dest,r1,r2
-            )
+    let DP_test_regs (opcode:test_op) (set_flags:bool)= 
+        let a = System.Random().Next(14)
+        let b = System.Random().Next(14)
+        let op1 = [0..12] @ [14] |> List.map (fun n -> sprintf "R%d" n) |> fun n -> n.[a]
+        let op2 = [0..12] @ [14] |> List.map (fun n -> sprintf "R%d" n) |> fun n -> n.[b]
+        match opcode with
+            |CMN |CMP -> 
+                [testEngine opcode set_flags None op1 op2]
+            |_ ->
+                let c = System.Random().Next(14)
+                let dest = 
+                    [0..12] @ [14] 
+                    |> fun n -> n.[c] 
+                    |> fun n -> Some (sprintf "R%d" n)
+                [testEngine opcode set_flags dest op1 op2]
     
     let runVisUALIncrTests = true
 
@@ -247,42 +268,48 @@ module VTest =
             testList "ALL DP Instructions" [
                 testList "All DP Instructions Literal Tests"  [
                     testList "All ADD SubClass Instructions" [
-                        testList "Literal test with ADD" (op2Test_lit 2 ADD true)
-                        testList "Literal test with ADDS" (op2Test_lit 2 ADD false)
-                        testList "Literal test with ADC" (op2Test_lit 2 ADC true)
-                        testList "Literal test with ADCS" (op2Test_lit 2 ADC false)
+                        testList "Literal test with ADD" (DP_test_lit 2 ADD true)
+                        testList "Literal test with ADDS" (DP_test_lit 2 ADD false)
+                        testList "Literal test with ADC" (DP_test_lit 2 ADC true)
+                        testList "Literal test with ADCS" (DP_test_lit 2 ADC false)
                     ]
                     testList "All SUB SubClass Instructions" [
-                        testList "Literal test with SUB" (op2Test_lit 2 SUB true)
-                        testList "Literal test with SUBS" (op2Test_lit 2 SUB false)
-                        testList "Literal test with SBC" (op2Test_lit 2 SBC true)
-                        testList "Literal test with SBCS" (op2Test_lit 2 SBC false)
+                        testList "Literal test with SUB" (DP_test_lit 2 SUB true)
+                        testList "Literal test with SUBS" (DP_test_lit 2 SUB false)
+                        testList "Literal test with SBC" (DP_test_lit 2 SBC true)
+                        testList "Literal test with SBCS" (DP_test_lit 2 SBC false)
                     ]
                     testList "All RSB SubClass Instructions" [
-                        testList "Literal test with RSB" (op2Test_lit 2 RSB true)
-                        testList "Literal test with RSBS" (op2Test_lit 2 RSB false)
-                        testList "Literal test with RSC" (op2Test_lit 2 RSC true)
-                        testList "Literal test with RSCS" (op2Test_lit 2 RSC false)
+                        testList "Literal test with RSB" (DP_test_lit 2 RSB true)
+                        testList "Literal test with RSBS" (DP_test_lit 2 RSB false)
+                        testList "Literal test with RSC" (DP_test_lit 2 RSC true)
+                        testList "Literal test with RSCS" (DP_test_lit 2 RSC false)
                     ]
                 ]
                 testList "All DP Instructions Register Tests" [
                     testList "All ADD SubClass Instructions" [
-                        testList "Register test with ADD" (op2Test_reg ADD true)
-                        testList "Register test with ADDS" (op2Test_reg ADD false)
-                        testList "Register test with ADC" (op2Test_reg ADC true)
-                        testList "Register test with ADCS" (op2Test_reg ADC false)
+                        testList "Register test with ADD" (DP_test_regs ADD true)
+                        testList "Register test with ADDS" (DP_test_regs ADD false)
+                        testList "Register test with ADC" (DP_test_regs ADC true)
+                        testList "Register test with ADCS" (DP_test_regs ADC false)
                     ]
                     testList "All SUB SubClass Instructions" [
-                        testList "Register test with SUB" (op2Test_reg SUB true)
-                        testList "Register test with SUBS" (op2Test_reg SUB false)
-                        testList "Register test with SBC" (op2Test_reg SBC true)
-                        testList "Register test with SBCS" (op2Test_reg SBC false)
+                        testList "Register test with SUB" (DP_test_regs SUB true)
+                        testList "Register test with SUBS" (DP_test_regs SUB false)
+                        testList "Register test with SBC" (DP_test_regs SBC true)
+                        testList "Register test with SBCS" (DP_test_regs SBC false)
                     ]
                     testList "All RSB SubClass Instructions" [
-                        testList "Register test with RSB" (op2Test_reg RSB true)
-                        testList "Register test with RSBS" (op2Test_reg RSB false)
-                        testList "Register test with RSC" (op2Test_reg RSC true)
-                        testList "Register test with RSCS" (op2Test_reg RSC false)
+                        testList "Register test with RSB" (DP_test_regs RSB true)
+                        testList "Register test with RSBS" (DP_test_regs RSB false)
+                        testList "Register test with RSC" (DP_test_regs RSC true)
+                        testList "Register test with RSCS" (DP_test_regs RSC false)
+                    ]
+                    testList "All COMPARISON SubClass Instructions" [
+                        testList "Register test with CMP" (DP_test_regs CMP false) //TODO: Fix flagsetting error
+                        //testList "Register test with CMPS" (DP_test_regs CMP true) //REDUNDANT
+                        testList "Register test with CMN" (DP_test_regs CMN false) //TODO: Fix flagsetting error
+                        //testList "Register test with CMNS" (DP_test_regs CMN true) //REDUNDANT
                     ]
                 ]
             ]
