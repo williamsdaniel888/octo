@@ -6,41 +6,63 @@ namespace CommonTop
 ////////////////////////////////////////////////////////////////////////////////////
 
 
+open Arith.Arith
 module CommonTop =
 
     open Common.CommonLex
     open Common.CommonData
     open Memory
-    open Octo
+    open Arith
 
     /// allows different modules to return different instruction types
     type Instr =
         | IMEM of Memory.Instr
+        | IDP of  Arith.Instr
     
     /// allows different modules to return different error info
     /// by default all return string so this is not needed
     type ErrInstr =
         | ERRIMEM of Memory.ErrInstr
+        | ERRIDP of Arith.ErrInstr
         | ERRTOPLEVEL of string
     
     
 
     type CondInstr = Condition * Instr
+
+    let FlRegMem2DPAndMem (x : Result<FlRegMemRecord<'INS>,'ERR>) : Result<DataPathAndMem<'INS>, 'ERR> =
+        match x with
+        | Ok(x) -> Ok ({DP = {Fl=x.Fl ; Regs=x.Regs}; MM = x.MM})
+        | Error(x) -> Error(x)
+
+    let dpMemTuple2DPAndMem (x : Result<(MachineMemory<'INS> * DataPath),'ERR>) : Result<DataPathAndMem<'INS>, 'ERR> =
+        match x with
+        | Ok(mem, dp) -> Ok ({DP = {Fl=dp.Fl ; Regs=dp.Regs}; MM = mem})
+        | Error(x) -> Error(x)
     
     //main IMATCH fn and parseAndEval fn
     (* *)
     (* THIS ONLY WORKS FOR DP ATM*)
-    let IMatch (state:DataPathAndMem<DP.Instr>) (ld: LineData) : Result<DataPathAndMem<DP.Instr>,DP.ErrInstr> option =
+    let IMatch (state: DataPathAndMem<'INS>) (ld: LineData) : Result<DataPathAndMem<'INS>, 'ERR> option =
         let pConv fr fe p = pResultInstrMap fr fe p |> Some
         match ld with
-        | DP.IMatch pa -> 
+        | Arith.IMatch pa -> 
             pa
-            |> fun a -> {DP.pd = (Some a); DP.st = state}
-            |> DP.eval
+            |> fun a -> {Arith.pd = (Some a); Arith.st = {MM = state.MM; Fl = state.DP.Fl; Regs = state.DP.Regs}}
+            |> Arith.eval
+            |> FlRegMem2DPAndMem
             |> Some
+        | Memory.IMatch parsedResult ->
+            parsedResult
+            |> function
+               | Ok(pRes) -> 
+                    (Memory.execute pRes state.MM {Fl=state.DP.Fl; Regs=state.DP.Regs})
+                    |> dpMemTuple2DPAndMem
+                    |> Some
+               | Error(x) -> Error(x) |> Some
         | _ -> None
 
-    let parseAndExecuteLine (symtab: SymbolTable option) (loadAddr: WAddr) (asmLine:string) (state:DataPathAndMem<DP.Instr>) =
+    let parseAndExecuteLine (symtab: SymbolTable option) (loadAddr: WAddr) (asmLine:string) (state:DataPathAndMem<'INS>) =
         /// put parameters into a LineData record
         let makeLineData opcode operands = {
             OpCode=opcode

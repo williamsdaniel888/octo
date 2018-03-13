@@ -1,5 +1,5 @@
-namespace Octo
-module DP =
+namespace Arith
+module Arith =
     open Common.CommonData
     open Common.CommonLex
 
@@ -9,6 +9,12 @@ module DP =
     type Reg = RName
     type SVal = NumericValue of int | RValue of Reg
     type Shift = Reg*SVal
+    type FlRegMemRecord<'INS> = {
+        Fl: Flags; // Flags
+        Regs:Map<RName,uint32> // map representing registers. 
+                               // Must be correctly initialised
+        MM: MachineMemory<'INS> // map showing the contents of all memory
+    }
 
     type Op2 = 
         | IMM12 of uint32
@@ -158,7 +164,7 @@ module DP =
     //FLEXIBLE OP2 EVALUATION TOOLS
 
     //Checks validity of input Shift, performs shift on register if possible
-    let doShift (ro: Shift) (cpuData: DataPathAndMem<Instr>) bitOp =
+    let doShift (ro: Shift) (cpuData: FlRegMemRecord<Instr>) bitOp =
         let rvalue = fst ro |> fun a -> Map.find a cpuData.Regs
         let svalue = snd ro
         match svalue with 
@@ -180,13 +186,13 @@ module DP =
             |> Result.bind checkOp2Literal
         
     //Perform RRX on a register's contents
-    let makeRRX (rv:Reg) (cpuData:DataPathAndMem<Instr>) =
+    let makeRRX (rv:Reg) (cpuData:FlRegMemRecord<Instr>) =
         let newMSB = if cpuData.Fl.C then 0x80000000u else 0x00000000u
         Map.find rv cpuData.Regs
         |> fun reg -> checkOp2Literal( newMSB + (reg>>>1))
 
     //Evaluates a flexible op2 value, returns uint32
-    let flexOp2 (op2:Op2) (cpuData:DataPathAndMem<Instr>) = 
+    let flexOp2 (op2:Op2) (cpuData:FlRegMemRecord<Instr>) = 
         match op2 with
         | IMM12 x -> x |> checkImm12
         | LiteralData (RC {K=a;R=b}) -> 
@@ -369,7 +375,7 @@ module DP =
         {N=negative;Z=zero;C=carry;V=overflow}
 
     // HOF for arithmetic functions
-    let engine (args: Instr) (state: DataPathAndMem<Instr>) bitOp=
+    let engine (args: Instr) (state: FlRegMemRecord<Instr>) bitOp=
         let dest' = args.ap.dest
         let op1' = 
             args.ap.op1 
@@ -407,11 +413,11 @@ module DP =
                 |> Map.ofList
         {Fl = flags'; Regs = regs'; MM = mm'}
 
-    type evalIn = {pd : Result<Parse<Instr>,ErrInstr> option; st : DataPathAndMem<Instr>}
+    type evalIn = {pd : Result<Parse<Instr>,ErrInstr> option; st : FlRegMemRecord<Instr>}
 
     /// eval: evalIn -> Result<Parse<Instr>,ErrInstr>
     /// Evaluate a parsed instruction of unknown validity
-    let eval (x:evalIn): Result<DataPathAndMem<Instr>, ErrInstr> =
+    let eval (x:evalIn): Result<FlRegMemRecord<Instr>, ErrInstr> =
         let instCond = 
             match x.pd with
                 |None -> Error "EV: Invalid opcode"
@@ -527,7 +533,7 @@ module DP =
         )
 
     //For convenience: parse and evaluate line
-    let parse_eval (x:LineData) (state:DataPathAndMem<Instr>) =
+    let parse_eval (x:LineData) (state:FlRegMemRecord<Instr>) =
         x  
         |> parser
         |> fun a -> {pd = a; st = state}

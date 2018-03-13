@@ -327,18 +327,18 @@
  includes register aliasses PC, LR, SP
 </summary>
 </member>
-<member name="T:Octo.DP.RotConstant">
+<member name="T:Arith.Arith.RotConstant">
 <summary>
  TYPE DEFINITIONS AND TOOLS
 </summary>
 </member>
-<member name="M:Octo.DP.eval(Octo.DP.evalIn)">
+<member name="M:Arith.Arith.eval(Arith.Arith.evalIn)">
 <summary>
  eval: evalIn -&gt; Result&lt;Parse&lt;Instr&gt;,ErrInstr&gt;
  Evaluate a parsed instruction of unknown validity
 </summary>
 </member>
-<member name="M:Octo.DP.parser(Common.CommonLex.LineData)">
+<member name="M:Arith.Arith.parser(Common.CommonLex.LineData)">
 <summary>
  parser: LineData -&gt; Result&lt;Parse&lt;Instr&gt;,ErrInstr&gt; option
  A function to parse a line of assembler
@@ -392,7 +392,7 @@
  literal value = (K % 256) rotated right by (R % 16)*2
 </summary>
 </member>
-<member name="M:Memory.Memory.execute(Common.CommonLex.Parse{Memory.Memory.Instr},Microsoft.FSharp.Collections.FSharpMap{Common.CommonData.WAddr,Common.CommonData.MemLoc{Memory.Memory.Instr}},Common.CommonData.DataPath)">
+<member name="M:Memory.Memory.execute``1(Common.CommonLex.Parse{Memory.Memory.Instr},Microsoft.FSharp.Collections.FSharpMap{Common.CommonData.WAddr,Common.CommonData.MemLoc{``0}},Common.CommonData.DataPath)">
 <summary>
 main execute stage
 </summary>

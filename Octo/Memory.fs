@@ -113,7 +113,7 @@ module Memory =
         }
 
     //this is a generic empty map which can be copied to new maps with added key,values etc
-    let emptyMachMemMap : MachineMemory<Instr> = Map.empty<WAddr,MemLoc<Instr>>
+    let emptyMachMemMap : MachineMemory<'INS> = Map.empty<WAddr,MemLoc<'INS>>
     
     
 
@@ -325,7 +325,7 @@ module Memory =
 
     ///main execute stage
     //takes in parsed instr, memMap, dataPath and return a tuple of updated memMap and dataPath as result
-    let execute (instr: Parse<Instr>) (memMap : MachineMemory<Instr>) (dataPath : DataPath) : Result<(MachineMemory<Instr> * DataPath), string>=
+    let execute (instr: Parse<Instr>) (memMap : MachineMemory<'INS>) (dataPath : DataPath) : Result<(MachineMemory<'INS> * DataPath), string>=
         match debug with | true -> printfn "[DEBUG] [EXEC] MemMap: %A\n" memMap | false -> ()
         match debug with | true -> printfn "[DEBUG] [EXEC] dataPath: %A\n" dataPath | false -> ()
 
@@ -364,8 +364,8 @@ module Memory =
             | Offset.Reg(x) -> (getRegVal x dataPath)
 
         //Once final WAddr is calculated, this function is called
-        let exec' (dP: DataPath) (mem: MachineMemory<Instr>) (wAddr : WAddr) : Result<(MachineMemory<Instr> * DataPath), string> =
-            let loadByteToReg (destReg: RName) (srcAddr: WAddr) : Result<(MachineMemory<Instr> * DataPath), string> =
+        let exec' (dP: DataPath) (mem: MachineMemory<'INS>) (wAddr : WAddr) : Result<(MachineMemory<'INS> * DataPath), string> =
+            let loadByteToReg (destReg: RName) (srcAddr: WAddr) : Result<(MachineMemory<'INS> * DataPath), string> =
                 //to load byte, reverse back to nearest little endian word-addr, read that and then extract the offset byte
                 let actualAddr = match srcAddr with | WA(x) -> x
                 let relPos = match srcAddr with | WA(x) -> (x % 4u)
@@ -382,7 +382,7 @@ module Memory =
                 | Some(Code(_)) -> Error("ProtMemAccessError: Reading data from instruction memory space is not allowed.")
                 | None -> Ok(mem, {dP with Regs=dP.Regs.Add(destReg, 0u)}) //default value if not in map
             
-            let loadWordToReg (destReg: RName) (srcAddr: WAddr) : Result<(MachineMemory<Instr> * DataPath), string> =
+            let loadWordToReg (destReg: RName) (srcAddr: WAddr) : Result<(MachineMemory<'INS> * DataPath), string> =
                 match srcAddr with
                 | WA(x) when (x % 4u = 0u) -> match (mem.TryFind srcAddr) with
                                               | Some(DataLoc(x)) -> Ok(mem, {dP with Regs=dP.Regs.Add(destReg, x)})
@@ -390,12 +390,12 @@ module Memory =
                                               | None -> Ok(mem, {dP with Regs=dP.Regs.Add(destReg, 0u)}) //default value if not in map
                 | _ -> Error("UnalignedWordAddr: LDR/STR instructions require aligned (divisible by 4) word addresses.")
 
-            let storeWordToMem (srcReg: RName) (destAddr: WAddr) : Result<(MachineMemory<Instr> * DataPath), string> =
+            let storeWordToMem (srcReg: RName) (destAddr: WAddr) : Result<(MachineMemory<'INS> * DataPath), string> =
                 match destAddr with
                 | WA(x) when (x % 4u = 0u) -> Ok(mem.Add(destAddr, DataLoc(getRegVal srcReg dP)), dP)
                 | _ -> Error("UnalignedWordAddr: LDR/STR instructions require aligned (divisible by 4) word addresses.")
 
-            let storeByteToMem (srcReg: RName) (destAddr: WAddr) : Result<(MachineMemory<Instr> * DataPath), string> =
+            let storeByteToMem (srcReg: RName) (destAddr: WAddr) : Result<(MachineMemory<'INS> * DataPath), string> =
                 //to load byte, reverse back to nearest little endian word-addr, read that and then extract the offset byte
                 //destAddr can be unaligned in this case
 

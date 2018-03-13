@@ -1,0 +1,10 @@
+ line="21">This instruction is not a valid ARM UAL instruction.syntax error in
+:[|"<?xml version="1.0" encoding="UTF-8" standalone="no"?>";
+  "<VisUAL xmlns="http://bitbucket.org/salmanarif/visual">";
+  "    <syntax-error line="21">This instruction is not a valid ARM UAL instruction.</syntax-error>";
+  "</VisUAL>"|]
+ line="21">This instruction is not a valid ARM UAL instruction.syntax error in
+:[|"<?xml version="1.0" encoding="UTF-8" standalone="no"?>";
+  "<VisUAL xmlns="http://bitbucket.org/salmanarif/visual">";
+  "    <syntax-error line="21">This instruction is not a valid ARM UAL instruction.</syntax-error>";
+  "</VisUAL>"|]

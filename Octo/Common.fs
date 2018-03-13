@@ -90,12 +90,8 @@ module CommonData =
     /// type to represent memory
     type MachineMemory<'INS> = Map<WAddr,MemLoc<'INS>>
 
-
-    //special type needed so that DP code does not break.
     type DataPathAndMem<'INS> = {
-        Fl: Flags; // Flags
-        Regs:Map<RName,uint32> // map representing registers. 
-                               // Must be correctly initialised
+        DP: DataPath
         MM: MachineMemory<'INS> // map showing the contents of all memory
     }
 
