@@ -35,7 +35,7 @@ module VTest =
         CacheFileName = 
             @"..\VisualWork\Cache"   // the file name of the global cache
         CacheLimit = 10               // the number of results before adding to global cache
-        InitFlags = {FN=false;FZ=false;FC=true;FV=false}
+        InitFlags = {FN=false;FZ=false;FC=false;FV=false}
         InitRegs = [0u..10u..140u]          // initial values of registers R0..R14
         MemReadBase = 0x1000u          // locations read from memory (currently 13 consecutive words are read)
         Postlude = ""                 // this is overwritten by code

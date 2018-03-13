@@ -458,10 +458,10 @@ module Arith =
                         if Map.containsKey (~~~p + 1u) allowedLiterals
                         then Some(Ok (~~~p + 1u)) else Some (Error "O2S: This value cannot be converted into a valid immediate")
                     |"ADC" -> 
-                        if Map.containsKey (~~~p + 2u) allowedLiterals
-                        then Some(Ok (~~~p + 2u)) else Some (Error "O2S: This value cannot be converted into a valid immediate")
+                        if Map.containsKey (~~~p) allowedLiterals //was ~~~p+2u
+                        then Some(Ok (~~~p)) else Some (Error "O2S: This value cannot be converted into a valid immediate")
                     |"SBC" ->
-                        if Map.containsKey (~~~p) allowedLiterals
+                        if Map.containsKey (~~~p) allowedLiterals //was ~~~p
                         then Some(Ok (~~~p)) else Some (Error "O2S: This value cannot be converted into a valid immediate")
                     |_ -> Some (Error "O2S: Root not recognized")    
                 |Ok (LiteralData (RC _)) -> None
@@ -480,7 +480,7 @@ module Arith =
                     |None -> Ok b
                     |Some(Error e) -> Error e
                 |"ADC"|"SBC" ->
-                    let rt' = b.rt |> function |"ADC" -> "CMN" |"SBC" -> "CMP"
+                    let rt' = b.rt |> function |"ADC" -> "SBC" |"SBC" -> "ADC"
                     match op2Status with
                     |Some(Ok p) -> Ok {b with rt = rt'; ap = {b.ap with op2 = newop2 p}}
                     |None -> Ok b
