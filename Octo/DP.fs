@@ -164,7 +164,7 @@ module Arith =
     //FLEXIBLE OP2 EVALUATION TOOLS
 
     //Checks validity of input Shift, performs shift on register if possible
-    let doShift (ro: Shift) (cpuData: FlRegMemRecord<Instr>) bitOp =
+    let doShift (ro: Shift) (cpuData: FlRegMemRecord<'INS>) bitOp =
         let rvalue = fst ro |> fun a -> Map.find a cpuData.Regs
         let svalue = snd ro
         match svalue with 
@@ -186,13 +186,13 @@ module Arith =
             |> Result.bind checkOp2Literal
         
     //Perform RRX on a register's contents
-    let makeRRX (rv:Reg) (cpuData:FlRegMemRecord<Instr>) =
+    let makeRRX (rv:Reg) (cpuData:FlRegMemRecord<'INS>) =
         let newMSB = if cpuData.Fl.C then 0x80000000u else 0x00000000u
         Map.find rv cpuData.Regs
         |> fun reg -> checkOp2Literal( newMSB + (reg>>>1))
 
     //Evaluates a flexible op2 value, returns uint32
-    let flexOp2 (op2:Op2) (cpuData:FlRegMemRecord<Instr>) = 
+    let flexOp2 (op2:Op2) (cpuData:FlRegMemRecord<'INS>) = 
         match op2 with
         | IMM12 x -> x |> checkImm12
         | LiteralData (RC {K=a;R=b}) -> 
@@ -375,7 +375,7 @@ module Arith =
         {N=negative;Z=zero;C=carry;V=overflow}
 
     // HOF for arithmetic functions
-    let engine (args: Instr) (state: FlRegMemRecord<Instr>) bitOp=
+    let engine (args: Instr) (state: FlRegMemRecord<'INS>) bitOp : FlRegMemRecord<'INS> =
         let dest' = args.ap.dest
         let op1' = 
             args.ap.op1 
@@ -413,11 +413,11 @@ module Arith =
                 |> Map.ofList
         {Fl = flags'; Regs = regs'; MM = mm'}
 
-    type evalIn = {pd : Result<Parse<Instr>,ErrInstr> option; st : FlRegMemRecord<Instr>}
+    type evalIn<'INS> = {pd : Result<Parse<Instr>,ErrInstr> option; st : FlRegMemRecord<'INS>}
 
     /// eval: evalIn -> Result<Parse<Instr>,ErrInstr>
     /// Evaluate a parsed instruction of unknown validity
-    let eval (x:evalIn): Result<FlRegMemRecord<Instr>, ErrInstr> =
+    let eval (x:evalIn<'INS>) : Result<FlRegMemRecord<'INS>, ErrInstr> =
         let instCond = 
             match x.pd with
                 |None -> Error "EV: Invalid opcode"
@@ -533,7 +533,7 @@ module Arith =
         )
 
     //For convenience: parse and evaluate line
-    let parse_eval (x:LineData) (state:FlRegMemRecord<Instr>) =
+    let parse_eval (x:LineData) (state:FlRegMemRecord<'INS>) =
         x  
         |> parser
         |> fun a -> {pd = a; st = state}

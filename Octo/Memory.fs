@@ -474,8 +474,8 @@ module Memory =
 
 
 module Tests =
-    open System
-    open Expecto.ExpectoFsCheck
+    //open System
+    //open Expecto.ExpectoFsCheck
     open Expecto
     open Memory
     
@@ -535,7 +535,7 @@ module Tests =
 
     //this can be directly pipelines to parseFn
     //the parse error will flow monadically
-    let execMemFn (instrResult : Result<Parse<Memory.Instr>,string>) (memMap: MachineMemory<Memory.Instr>) (dataPath: DataPath) =
+    let execMemFn (instrResult : Result<Parse<Memory.Instr>,string>) (memMap: MachineMemory<'INS>) (dataPath: DataPath) =
         match instrResult with
         | Ok(instr) -> (execute instr memMap dataPath)
         | Error(x) -> Error(x)
