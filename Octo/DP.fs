@@ -393,7 +393,7 @@ module Arith =
         let root = args.rt
         let result = bitOp op1' op2' state.Fl.C
         let flags' =
-            if args.sf ="S"
+            if args.sf ="S" || root = "CMP" || root = "CMN" 
                 then (getFlags result root op1MSBset (op1'=0L && op2'=0L))
                 else state.Fl
         let regs' = 

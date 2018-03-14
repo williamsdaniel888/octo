@@ -179,16 +179,15 @@ module VTest =
         //Order => N ; Z ; C ; V
         [fl.N ; fl.Z ; fl.C ; fl.V]
         |> List.map (function
-                     | true -> "1"
-                     | false -> "0")
+            | true -> "1"
+            | false -> "0")
         |> List.reduce (+)
         //sprintf "%d %d" (System.Convert.ToUInt16 fl.N) (System.Convert.ToUInt16 fl.N)
+
 
     let testEngine (opcode:testOpCode) (set_flags:bool) (dest:string option) (op1:string) (op2:string)= 
         let argIn = createArgs opcode set_flags dest op1 op2
         let test_id = argIn
-
-
         let evaluatedOutput = CommonTop.parseAndExecuteLine None (WA defaultParas.MemReadBase) argIn stateIn
         let evaluatedFlagsReg = 
             evaluatedOutput
@@ -197,16 +196,15 @@ module VTest =
                     //printfn "String result %A\t Actual: %A\n" (flag2BinStr a.DP.Fl) (a.DP.Fl)
                     (flag2BinStr a.DP.Fl)
                 let regOut = 
-                    //Map.find R1 a.Regs |> fun a -> [R 1, int(a)]
-                    match opcode with
-                    | CMP |CMN -> Map.find R0 a.DP.Regs |> fun a -> [R 0, int(a)] //TODO: adapt to relevant dest or op1 register
-                    | _ ->
-                        match dest with
-                        | Some x -> 
-                            let rd = Map.find x regNames
-                            let rdNumber = Map.find rd regNums
-                            Map.find rd a.DP.Regs |> fun a -> [R rdNumber, int(a)]
-                        | None -> failwithf "Destination register is missing"
+                    let rd =
+                        match opcode with
+                        | CMP |CMN -> Map.find op1 regNames
+                        | _ ->
+                            match dest with
+                            | Some x -> Map.find x regNames
+                            | None -> failwithf "Destination register is missing"
+                    let rdNumber = Map.find rd regNums
+                    Map.find rd a.DP.Regs |> fun a -> [R rdNumber, int(a)]
                 flOut,regOut
                 )
         match evaluatedFlagsReg with
@@ -214,26 +212,31 @@ module VTest =
         | Error e -> failwithf "Instruction: %s; Error Detected: %s" argIn e
 
     //TODO: allow all permutations of dest,r1,r2; include Shifts
-     //TODO: allow for full range of literals and negative immediates, not just [0,256]
-    let DP_test_lit (m:int) (opcode:testOpCode) (set_flags:bool)= 
-        [0..m]
-        |> List.filter (fun a -> Map.containsKey (uint32 (a)) allowedLiterals)
-        |> List.map (fun n -> 
-                let n' = (n % 256)
-                let op2 = sprintf "#%d" n'
-                testEngine opcode set_flags (Some "R0") "R0" op2 
-            )
-
+    //TODO: allow for full range of literals and negative immediates, not just [0,256]
     let getRandElemFromList (lst : 'a list) : 'a = (List.item (System.Random().Next lst.Length) lst)
-    //let allowedDPRegInt = [0..12] @ [14]
+
+    let DP_test_lit (m:int) (opcode:testOpCode) (set_flags:bool)= 
+        let allowedRIntLst = [0..12] @ [14]
+        let op1 = regStrings.[inverseRegNums.[getRandElemFromList allowedRIntLst]]
+        if (opcode = RSB) || (opcode = RSC) 
+            then [0..m] 
+            else [-m..m]
+        |> List.filter (fun a -> (Map.containsKey (uint32 (a)) allowedLiterals) || (Map.containsKey (uint32 (-a)) allowedLiterals))    
+        //Map.toList allowedLiterals |> List.map (fst) |> List.map (int)
+        |> List.map (fun n -> 
+            let n' = n //(n % 256)
+            let op2 = sprintf "#%d" n'
+            match opcode with
+            |CMN |CMP -> testEngine opcode set_flags None op1 op2
+            |_ -> 
+                let dest = regStrings.[inverseRegNums.[getRandElemFromList allowedRIntLst]]
+                testEngine opcode set_flags (Some dest) op1 op2 
+            )
 
     let DP_test_regs (opcode:testOpCode) (set_flags:bool)= 
         let allowedRIntLst = [0..12] @ [14]
-
-        // use existing functions from common
         let op1 = regStrings.[inverseRegNums.[getRandElemFromList allowedRIntLst]]
         let op2 = regStrings.[inverseRegNums.[getRandElemFromList allowedRIntLst]]
-
         match opcode with
             | CMN | CMP -> 
                 [testEngine opcode set_flags None op1 op2]
@@ -245,9 +248,8 @@ module VTest =
                 [testEngine opcode set_flags dest op1 op2]
     
     let runVisUALIncrTests = true
-
     
-    // //Basic Literal Tests (must do outside [0,255])
+    //Basic Literal Tests (must do outside [0,255])
     [<Tests>]
     let allIncrTests =
         match runVisUALIncrTests with
@@ -255,22 +257,28 @@ module VTest =
             testList "ALL DP Instructions" [
                 testList "All DP Instructions Literal Tests"  [
                     testList "All ADD SubClass Instructions" [
-                        testList "Literal test with ADD" (DP_test_lit 2 ADD true)
-                        testList "Literal test with ADDS" (DP_test_lit 2 ADD false)
-                        testList "Literal test with ADC" (DP_test_lit 2 ADC true)
-                        testList "Literal test with ADCS" (DP_test_lit 2 ADC false)
+                        testList "Literal test with ADD" (DP_test_lit 10 ADD true)
+                        testList "Literal test with ADDS" (DP_test_lit 10 ADD false)
+                        testList "Literal test with ADC" (DP_test_lit 10 ADC true)
+                        testList "Literal test with ADCS" (DP_test_lit 10 ADC false)
                     ]
                     testList "All SUB SubClass Instructions" [
-                        testList "Literal test with SUB" (DP_test_lit 2 SUB true)
-                        testList "Literal test with SUBS" (DP_test_lit 2 SUB false)
-                        testList "Literal test with SBC" (DP_test_lit 2 SBC true)
-                        testList "Literal test with SBCS" (DP_test_lit 2 SBC false)
+                        testList "Literal test with SUB" (DP_test_lit 10 SUB true)
+                        testList "Literal test with SUBS" (DP_test_lit 10 SUB false)
+                        testList "Literal test with SBC" (DP_test_lit 10 SBC true)
+                        testList "Literal test with SBCS" (DP_test_lit 10 SBC false)
                     ]
                     testList "All RSB SubClass Instructions" [
-                        testList "Literal test with RSB" (DP_test_lit 2 RSB true)
-                        testList "Literal test with RSBS" (DP_test_lit 2 RSB false)
-                        testList "Literal test with RSC" (DP_test_lit 2 RSC true)
-                        testList "Literal test with RSCS" (DP_test_lit 2 RSC false)
+                        testList "Literal test with RSB" (DP_test_lit 10 RSB true)
+                        testList "Literal test with RSBS" (DP_test_lit 10 RSB false)
+                        testList "Literal test with RSC" (DP_test_lit 10 RSC true)
+                        testList "Literal test with RSCS" (DP_test_lit 10 RSC false)
+                    ]
+                    testList "All COMPARISON SubClass Instructions" [
+                        testList "Literal test with CMP" (DP_test_lit 10 CMP false)
+                        //testList "Literal test with CMPS" (DP_test_lit CMP true) //REDUNDANT
+                        testList "Literal test with CMN" (DP_test_lit 10 CMN false)
+                        //testList "Literal test with CMNS" (DP_test_lit CMN true) //REDUNDANT
                     ]
                 ]
                 testList "All DP Instructions Register Tests" [
@@ -293,9 +301,9 @@ module VTest =
                         testList "Register test with RSCS" (DP_test_regs RSC false)
                     ]
                     testList "All COMPARISON SubClass Instructions" [
-                        testList "Register test with CMP" (DP_test_regs CMP false) //TODO: Fix flagsetting error
+                        testList "Register test with CMP" (DP_test_regs CMP false)
                         //testList "Register test with CMPS" (DP_test_regs CMP true) //REDUNDANT
-                        testList "Register test with CMN" (DP_test_regs CMN false) //TODO: Fix flagsetting error
+                        testList "Register test with CMN" (DP_test_regs CMN false)
                         //testList "Register test with CMNS" (DP_test_regs CMN true) //REDUNDANT
                     ]
                 ]
@@ -304,29 +312,29 @@ module VTest =
     
 
 
-    [<Tests>]
-    /// implements random property-based tests of the framework
-    /// tests that read/write of registers and flags is consistent for random
-    /// input values
-    let frametests =        
-       let fsConfig = {
-               FsCheckConfig.defaultConfig with
-                   replay = Some (0,0) // seed for RNG. Means that the same tests are done each run
-                                       // replace by None for a random time-based seed and therefore
-                                       // new tests each time that will not cache
-                   maxTest = 100       // number of random tests
-               }
-       testPropertyWithConfig fsConfig "Flags and registers are preserved" VisualFrameworkRun
+    //[<Tests>]
+    ///// implements random property-based tests of the framework
+    ///// tests that read/write of registers and flags is consistent for random
+    ///// input values
+    //let frametests =        
+    //   let fsConfig = {
+    //           FsCheckConfig.defaultConfig with
+    //               replay = Some (0,0) // seed for RNG. Means that the same tests are done each run
+    //                                   // replace by None for a random time-based seed and therefore
+    //                                   // new tests each time that will not cache
+    //               maxTest = 100       // number of random tests
+    //           }
+    //   testPropertyWithConfig fsConfig "Flags and registers are preserved" VisualFrameworkRun
 
 
-    [<Tests>]
-    let tests = 
-        testList "Minimal Visual Unit Tests"
-            [
-                VisualFrameworkTest defaultParas
-                //vTest "SUB test" "SUB R0, R0, #1" "0010" [R 0, -1]
-                //vTest "SUBS test" "SUBS R0, R0, #0" "0110" [R 0, 0]
-                //vTest "This ADDS test should fail" "ADDS R0, R0, #4" "0000" [R 0, 4; R 1, 0] 
-                // R1 should be 10 but is specified here as 0
-            ]
+    //[<Tests>]
+    //let tests = 
+    //    testList "Minimal Visual Unit Tests"
+    //        [
+    //            VisualFrameworkTest defaultParas
+    //            vTest "SUB test" "SUB R0, R0, #1" "0010" [R 0, -1]
+    //            vTest "SUBS test" "SUBS R0, R0, #0" "0110" [R 0, 0]
+    //            //vTest "This ADDS test should fail" "ADDS R0, R0, #4" "0000" [R 0, 4; R 1, 0] 
+    //            // R1 should be 10 but is specified here as 0
+    //        ]
 
