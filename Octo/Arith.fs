@@ -37,8 +37,8 @@ module Arith =
         |> List.map (fun (lit,n) -> ((lit >>> n) + (lit <<< 32-n)),(lit,n)) //)|> List.sort
         |> Map.ofList
     //let bad = [0u..255u] |> List.filter (fun n -> (List.contains n allowedLiterals)<>false)
-    //let p = Map.containsKey 65u allowedLiterals
-    //[0..256] |> List.filter (fun a -> Map.containsKey (uint32(a)) allowedLiterals)  
+    //let p = Map.containsKey 2147483718u allowedLiterals ///ERROR IS HERE - RSB/RSC Neg OP2
+    //[0x80000000u..0x81000000u] |> List.filter (fun a -> Map.containsKey (uint32(a)) allowedLiterals)  
 
     //Verify whether a uint32 is a valid immediate
     let checkOp2Literal (imm: uint32) : Result<Op2,string> = 
@@ -164,7 +164,7 @@ module Arith =
     //FLEXIBLE OP2 EVALUATION TOOLS
 
     //Checks validity of input Shift, performs shift on register if possible
-    let doShift (ro: Shift) (cpuData: FlRegMemRecord<'INS>) bitOp =
+    let doShift (ro: Shift) (cpuData: FlRegMemRecord<'INS>) bitOp : Result<uint32,string> =
         let rvalue = fst ro |> fun a -> Map.find a cpuData.Regs
         let svalue = snd ro
         match svalue with 
@@ -172,9 +172,10 @@ module Arith =
             if s>=0 && s<=31 
                 then
                     bitOp rvalue (s%32)
-                    |> checkOp2Literal
+                    |> Ok
+                    //|> checkOp2Literal
                 //Return an error message if s is out of bounds
-                //Diverges from VisUAL behavior, follows TC's Slack guidance
+                //Diverges from VisUAL behavior, follows TC's guidance
                 else Error "DS: Invalid shift, must be between 0<=s<=31" 
         |RValue r ->
             //Calculate unsigned register contents modulo 32, then perform shift
@@ -183,26 +184,27 @@ module Arith =
             |> Result.map (fun re ->
                 int((Map.find re cpuData.Regs) &&& 0x1Fu) 
                 |> bitOp rvalue )
-            |> Result.bind checkOp2Literal
+            //|> Result.bind checkOp2Literal
         
     //Perform RRX on a register's contents
     let makeRRX (rv:Reg) (cpuData:FlRegMemRecord<'INS>) =
         let newMSB = if cpuData.Fl.C then 0x80000000u else 0x00000000u
         Map.find rv cpuData.Regs
-        |> fun reg -> checkOp2Literal( newMSB + (reg>>>1))
+        |> fun reg -> Ok ( newMSB + (reg>>>1))
 
     //Evaluates a flexible op2 value, returns uint32
     let flexOp2 (op2:Op2) (cpuData:FlRegMemRecord<'INS>) = 
         match op2 with
-        | IMM12 x -> x |> checkImm12
+        | IMM12 x -> x |> Ok //|> checkImm12
         | LiteralData (RC {K=a;R=b}) -> 
-                (a >>> b) + (a <<< 32-b)
-                |> checkOp2Literal
-        | LiteralData (Swappable x) -> checkOp2Literal x
+                (a >>> b) + (a <<< 32-b) |> Ok
+                //|> checkOp2Literal
+        | LiteralData (Swappable x) -> x |> Ok //checkOp2Literal x
         | Register register -> 
             checkOp2Register register 
             |> Result.map (fun a -> Map.find a cpuData.Regs)
-            |> Result.bind checkOp2Literal
+            //|> Result.map (fun a -> Map.find a cpuData.Regs)
+            //|> Result.bind checkOp2Literal
         | LSL shift -> doShift shift cpuData (<<<)
         | ASR shift -> doShift shift cpuData (fun a b -> (int a) >>> b |> uint32)
         | LSR shift -> doShift shift cpuData (>>>)
@@ -345,7 +347,7 @@ module Arith =
     let (|IMatch|_|) = parser
 
     // Update CSPR flags if necessary
-    let getFlags (res:int64) (root:string) (op1MSBset:bool) (bothOpsZ:bool) = 
+    let getFlags (res:int64) (root:string) (op1MSBset:bool) (op2MSBset:bool) (bothOpsZ:bool) = 
         let negative = if (0x80000000L &&& res)<>0L then true else false
         let zero = if res &&& 0xffffffffL = 0L then true else false
         let carry =
@@ -358,20 +360,21 @@ module Arith =
         let overflow = 
             match root with
             |"ADD" |"ADC" |"CMN" -> 
-                match op1MSBset with
-                |true -> false
-                |false -> 
-                    if bothOpsZ
-                        then false
-                        else if res <= 0L then true else false
+                match op1MSBset,op2MSBset with
+                |false,true |true,false -> false
+                |false,false -> if res <= 0L then true else false
+                |true,true -> if res >= 0L then true else false
             |"SUB" |"SBC" |"CMP" ->
-                match op1MSBset with
-                |true -> if res >= 0L then true else false
-                |false -> false
+                match op1MSBset,op2MSBset with
+                |false,true -> if res <= 0L then true else false
+                |true,false -> if res >= 0L then true else false
+                |false,false |true,true -> false
             |"RSB" |"RSC" -> 
-                match op1MSBset with
-                |true -> if res <= 0L then true else false
-                |false -> false
+                //printfn "%b %b %d" op2MSBset op1MSBset res
+                match op2MSBset, op1MSBset with
+                |true,false -> if res >= 0L then true else false
+                |false,true -> if res <= 0L then true else false
+                |false,false |true,true -> false
         {N=negative;Z=zero;C=carry;V=overflow}
 
     // HOF for arithmetic functions
@@ -384,17 +387,19 @@ module Arith =
         let op2' =
             flexOp2 args.ap.op2 state
             |> function
-                |Ok x -> 
-                    match x with 
-                    |LiteralData (RC rc) -> (rc.K,rc.R) |> fun (lit,n) -> int64((lit >>> n) + (lit <<< 32-n))
-                    |_ -> failwithf "Bad arguments"
+                |Ok x -> int64(x)
+                    //match x with 
+                    //|LiteralData (RC rc) -> (rc.K,rc.R) |> fun (lit,n) -> int64((lit >>> n) + (lit <<< 32-n))
                 |Error _-> failwithf "Bad arguments" 
         let op1MSBset = op1' &&& 0x100000000L <>0L
+        let op2MSBset = op2' &&& 0x80000000L <>0L
         let root = args.rt
         let result = bitOp op1' op2' state.Fl.C
         let flags' =
             if args.sf ="S" || root = "CMP" || root = "CMN" 
-                then (getFlags result root op1MSBset (op1'=0L && op2'=0L))
+                then 
+                    //printfn "Root,Op1',Op2' is %s,%d,%d" root op1' op2'
+                    getFlags result root op1MSBset op2MSBset (op1'=0L && op2'=0L)
                 else state.Fl
         let regs' = 
             match dest' with
@@ -444,23 +449,30 @@ module Arith =
                 )
         instCond
         |> Result.map fst
-        |> Result.map (fun b ->
+        |> Result.map (fun b -> //Perform a swap if needed. Must distinguish between invalid negative imm and negative op2 resulting from a shift.
             let op2Status =
-                match (flexOp2 b.ap.op2 x.st) with
+                let s = 
+                    match b.ap.op2 with
+                    | IMM12 x -> x |> checkImm12
+                    | LiteralData (RC {K=a;R=b}) -> (a >>> b) + (a <<< 32-b) |> checkOp2Literal
+                    | LiteralData (Swappable x) -> x |> checkOp2Literal
+                    | _ -> Ok b.ap.op2
+                match s with
                 |Ok (LiteralData (Swappable p)) -> 
                     match b.rt with
-                    |"RSB"|"RSC" -> Some (Error  "O2S: This value cannot be converted into a valid immediate")
+                    |"RSB"|"RSC" -> Some (Error "O2S: This value cannot be converted into a valid immediate")
                     |"ADD"|"SUB"|"CMP"|"CMN" -> 
                         if Map.containsKey (~~~p + 1u) allowedLiterals
                         then Some(Ok (~~~p + 1u)) else Some (Error "O2S: This value cannot be converted into a valid immediate")
                     |"ADC" -> 
-                        if Map.containsKey (~~~p) allowedLiterals //was ~~~p+2u
+                        if Map.containsKey (~~~p) allowedLiterals
                         then Some(Ok (~~~p)) else Some (Error "O2S: This value cannot be converted into a valid immediate")
                     |"SBC" ->
-                        if Map.containsKey (~~~p) allowedLiterals //was ~~~p
+                        if Map.containsKey (~~~p) allowedLiterals
                         then Some(Ok (~~~p)) else Some (Error "O2S: This value cannot be converted into a valid immediate")
                     |_ -> Some (Error "O2S: Root not recognized")    
                 |Ok (LiteralData (RC _)) -> None
+                |Ok _ -> None
                 |_ -> Some (Error "O2S: Bad output from flexOp2")
             let newop2 imm = 
                 Map.containsKey imm allowedLiterals
