@@ -236,9 +236,9 @@ module VTest =
     let dpTestRegs (opcode:TestOpCode) (set_flags:bool)= 
         let allowedRIntLst = [0..12] @ [14]
         let op1 = ["R8"]//[regStrings.[inverseRegNums.[getRandElemFromList allowedRIntLst]]]
-        let op2 = [regStrings.[inverseRegNums.[getRandElemFromList allowedRIntLst]]]
-        let op3 = List.map (fun a -> sprintf "R%d" a) [0..3]
-        let flop2 = ["R0, LSR #0"]//List.allPairs op2 op3 |> List.map (fun a -> sprintf "%s, LSL %s" (fst a) (snd a)) //regStrings.[inverseRegNums.[getRandElemFromList allowedRIntLst]] 
+        //let op2 = [regStrings.[inverseRegNums.[getRandElemFromList allowedRIntLst]]]
+        //let op3 = List.map (fun a -> sprintf "R%d" a) [0..3]
+        let flop2 = ["R0, LSR R1"]//List.allPairs op2 op3 |> List.map (fun a -> sprintf "%s, LSL %s" (fst a) (snd a)) //regStrings.[inverseRegNums.[getRandElemFromList allowedRIntLst]] 
 
         List.allPairs op1 flop2
         |> List.map (fun pp ->

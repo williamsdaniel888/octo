@@ -40,9 +40,15 @@ module CommonTop =
         | Ok(mem, dp) -> Ok ({DP = {Fl=dp.Fl ; Regs=dp.Regs}; MM = mem})
         | Error(x) -> Error(x)
     
-    //main IMATCH fn and parseAndEval fn
-    (* *)
-    (* THIS ONLY WORKS FOR DP ATM*)
+    //THIS IS FOR PARSING ONLY
+    let IMatch (state: DataPathAndMem<'INS>) (ld: LineData) : Result<Parse<'INS>, string> option =
+        let pConv fr fe p = pResultInstrMap fr fe p |> Some
+        match ld with
+        | Arith.IMatch pa -> pa
+        | Memory.IMatch parsedResult -> parsedResult
+        | _ -> None
+
+    ///THIS IS FOR PARSING AND EVALUATING
     let IMatch (state: DataPathAndMem<'INS>) (ld: LineData) : Result<DataPathAndMem<'INS>, string> option =
         let pConv fr fe p = pResultInstrMap fr fe p |> Some
         match ld with
@@ -88,15 +94,17 @@ module CommonTop =
             let pNoLabel =
                 match words with
                 | opc :: operands -> 
+                    printfn "First OPC %s" opc
                     makeLineData opc operands 
                     |> IMatch state
                 | _ -> None
             match pNoLabel, words with
             | Some pa, _ -> pa
             | None, label :: opc :: operands -> 
+                printfn "Label %s" label
                 match { makeLineData opc operands with Label=Some label} |> IMatch state with
                 | None -> 
-                    Error (sprintf "Unimplemented instruction %s" opc)
+                    Error (sprintf "BAD OPC Unimplemented instruction %s" opc)
                 | Some pa -> pa
             | _ -> Error (sprintf "Unimplemented instruction %A" words)
         asmLine
