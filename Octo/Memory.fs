@@ -19,16 +19,25 @@ module Memory =
     type OpCode =
         | OpLDR
         | OpSTR
-        // add more
+        | OpLDM
     
     type Suffix =
         | BSuff
+        | IASuff //same as above // Increment Address
+        | FDSuff //same as above // Full Ascending
+        | DBSuff // Decrement address before each access
+        | EASuff //same as above // empty ascending
+        // add moreTODO ED and FA not supported
         | NoneSuff
 
     //map each string to a valid opcode
-    let OpCodeMap = [ "LDR",OpLDR ; "STR",OpSTR ] |> Map.ofList ;
+    let OpCodeMap = [ "LDR",OpLDR ; "STR",OpSTR ; "LDM", OpLDM ;
+                      
+                    ] |> Map.ofList ;
 
-    let SuffixMap = [ "B", BSuff ; "", NoneSuff ] |> Map.ofList ;
+    let SuffixMap = [ "B", BSuff ; "IA", IASuff; "FD", FDSuff; "DB", DBSuff ;
+                      "EA", EASuff ; "", NoneSuff 
+                    ] |> Map.ofList ;
     
     /// literal value = (K % 256) rotated right by (R % 16)*2
     type Literal = {K: uint32; R: int; I: bool} // best practice, see later
@@ -470,6 +479,13 @@ module Memory =
                                        |> (fun (_, newDP) -> exec' newDP memMap (calcWAddrVal op2RegVal 0u))
 
 
+
+
+
+
+
+
+
 /// **************Test MODULE For Memory*******
 
 
@@ -569,7 +585,57 @@ module Tests =
         |> List.map (fun (i, (inp, out)) -> (makeOneTest (i+1) inp out))
         |> Expecto.Tests.testList (testListName)
 
+    let setMem (lst : (uint32 * uint32) list) : MachineMemory<'INS> =
+        lst
+        |> List.map (fun (addr, word) -> (WA addr), (DataLoc word)  )
+        |> Map.ofList
+    
+    let setDataPath (lst : (RName * uint32) list) : DataPath =
+        let defRegMap = defDataPath.Regs
+        let defFlags = defDataPath.Fl
+        let partialRegMap = lst |> Map.ofList
 
+        //Take every key/value pair from second map and replace with default values in defaultMap=defRegMap=acc
+        let newMap = Map.fold (fun acc key value -> Map.add key value acc) defRegMap partialRegMap
+        {Regs = newMap ; Fl = defFlags}
+
+    let extractMemAndDP (tripleTuple : string * ((uint32 * uint32) list) * ((RName * uint32) list)) = 
+        //("LDR R0, [R1]", setMem([0x100u, 0x123u]), setDataPath [R1 , 0x100u ])
+        tripleTuple
+        |> (fun (str, memLst, regLst) -> (str, setMem(memLst), setDataPath(regLst)))
+    
+    let extractMemAndDPFromResult (doubleTupleRes) = 
+        match doubleTupleRes with
+        | Ok((memLst, regLst)) -> Ok((setMem(memLst), setDataPath(regLst)))
+        | Error(x) -> Error(x)
+
+    
+    let testRandLDRReg (reg1 : RName) (reg2 : RName) (memData: uint32) : bool =
+        let memLoc = 
+            allowedLiterals
+            |> Map.toList
+            |> List.filter (fun (value, _) -> (value % 4u = 0u))
+            |> getRandElemFromList
+            |> (fun (trueVal, _) -> trueVal)
+        
+        let inputStr =
+            "LDR " + regStrings.[reg1] + ", [" + regStrings.[reg2] + "]"
+        
+        let inputVals = extractMemAndDP(inputStr, [memLoc, memData], [reg2, memLoc])
+
+        let outputVals = 
+            match reg1 with
+            | reg1 when (reg1 = reg2) -> extractMemAndDPFromResult(Ok([memLoc, memData], [reg2, memData])) 
+            | _ -> extractMemAndDPFromResult(Ok([memLoc, memData], [reg1, memData ; reg2, memLoc]))
+        
+        let actualVals = parseAndExec inputVals
+
+        match (outputVals = actualVals) with
+        | false -> printfn "Test Error: \n\n***EXPECTED***:\n\n %A \n\n ***ACTUAL***:\n\n %A \n\n" outputVals actualVals
+                   ; false
+        | true -> true
+        
+        //return result as boolean
 
     [<Tests>]
     let t1 = makeExpectoTestList id id id "Sample String Identity Test" [
@@ -632,31 +698,43 @@ module Tests =
                    (({N=true;C=false;V=false;Z=false}, Cle) , true)
     ]
 
+
+    //Input => (String, memAddr * memData list, reg * regData list)
+    //Output => Ok(memAddr * memData list, reg * regData list) or Error(...)
     [<Tests>]
-    let t8 = makeExpectoTestList id id parseAndExec "Mem Tests" [
-                   (("LDR R0, [R1]", emptyMachMemMap.Add(WA(0x100u), DataLoc(0x123u)), {defDataPath with Regs=defDataPath.Regs.Add(R1, 0x100u)}) ,
-                    Ok(emptyMachMemMap.Add(WA(0x100u), DataLoc(0x123u)), {defDataPath with Regs=defDataPath.Regs.Add(R1, 0x100u).Add(R0, 0x123u)}))
+    let t8 = makeExpectoTestList extractMemAndDP extractMemAndDPFromResult parseAndExec "Mem Tests" [
+                   (("LDR R0, [R1]", [0x100u, 0x123u], [R1 , 0x100u]),
+                    Ok([0x100u, 0x123u], [R0, 0x123u ; R1, 0x100u]))
 
-                   (("LDR R0, [R1, #4]", emptyMachMemMap.Add(WA(0x104u), DataLoc(0xF000000Fu)), {defDataPath with Regs=defDataPath.Regs.Add(R1, 0x100u)}) ,
-                    Ok(emptyMachMemMap.Add(WA(0x104u), DataLoc(0xF000000Fu)), {defDataPath with Regs=defDataPath.Regs.Add(R1, 0x100u).Add(R0, 0xF000000Fu)}))
+                   (("LDR R0, [R1, #4]", [0x104u, 0xF000000Fu], [R1, 0x100u]) ,
+                    Ok([0x104u, 0xF000000Fu], [R0, 0xF000000Fu ; R1, 0x100u ]))
 
-                   (("LDR R0, [R1, #3]", emptyMachMemMap.Add(WA(0x104u), DataLoc(0xF000000Fu)), {defDataPath with Regs=defDataPath.Regs.Add(R1, 0x100u)}) ,
+                   (("LDR R0, [R1, #3]", [0x104u, 0xF000000Fu], [R1, 0x100u]),
                     Error("UnalignedWordAddr: LDR/STR instructions require aligned (divisible by 4) word addresses."))
 
-                   (("LDR R0, [R1, #0x10]!", emptyMachMemMap.Add(WA(0x110u), DataLoc(0xFFu)), {defDataPath with Regs=defDataPath.Regs.Add(R1, 0x100u)}) ,
-                    Ok(emptyMachMemMap.Add(WA(0x110u), DataLoc(0xFFu)), {defDataPath with Regs=defDataPath.Regs.Add(R1, 0x110u).Add(R0, 0xFFu)}))
+                   (("LDR R0, [R1, #0x10]!", [(0x110u), 0xFFu], [R1, 0x100u]) ,
+                    Ok([0x110u, 0xFFu], [R0, 0xFFu ; R1, 0x110u]))
 
-                   (("LDR R0, [R1], #0xC", emptyMachMemMap.Add(WA(0x100u), DataLoc(0xFFu)), {defDataPath with Regs=defDataPath.Regs.Add(R1, 0x100u)}) ,
-                    Ok(emptyMachMemMap.Add(WA(0x100u), DataLoc(0xFFu)), {defDataPath with Regs=defDataPath.Regs.Add(R1, 0x10Cu).Add(R0, 0xFFu)}))
+                   (("LDR R0, [R1], #0xC", [0x100u, 0xFFu], [R1, 0x100u]) ,
+                    Ok([0x100u, 0xFFu], [R0, 0xFFu ; R1, 0x10Cu]))
 
-                   (("STR R0, [R1]", emptyMachMemMap, {defDataPath with Regs=defDataPath.Regs.Add(R0, 0xF4FFu).Add(R1, 0x100u)}) ,
-                    Ok(emptyMachMemMap.Add(WA(0x100u), DataLoc(0xF4FFu)), {defDataPath with Regs=defDataPath.Regs.Add(R1, 0x100u).Add(R0, 0xF4FFu)}))
+                   (("STR R0, [R1]", [], [R0, 0xF4FFu ; R1, 0x100u]) ,
+                    Ok([0x100u, 0xF4FFu], [R0, 0xF4FFu ; R1, 0x100u]))
 
-                   (("LDRB R0, [R1]", emptyMachMemMap.Add(WA(0x100u), DataLoc(0xF4FFu)), {defDataPath with Regs=defDataPath.Regs.Add(R1, 0x101u)}) ,
-                    Ok(emptyMachMemMap.Add(WA(0x100u), DataLoc(0xF4FFu)), {defDataPath with Regs=defDataPath.Regs.Add(R1, 0x101u).Add(R0, 0xF4u)}))
+                   (("LDRB R0, [R1]", [0x100u, 0xF4FFu], [R1, 0x101u]) ,
+                    Ok([0x100u, 0xF4FFu], [R0, 0xF4u ; R1, 0x101u]))
 
-                   (("STRB R0, [R1, #0x2]!", emptyMachMemMap.Add(WA(0x100u), DataLoc(0xAABBCCDDu)), {defDataPath with Regs=defDataPath.Regs.Add(R0, 0x66778899u).Add(R1, 0x100u)}) ,
-                    Ok(emptyMachMemMap.Add(WA(0x100u), DataLoc(0xAA99CCDDu)), {defDataPath with Regs=defDataPath.Regs.Add(R0, 0x66778899u).Add(R1, 0x102u)}))
+                   (("STRB R0, [R1, #0x2]!", [0x100u , 0xAABBCCDDu], [R0, 0x66778899u ; R1, 0x100u]) ,
+                    Ok([0x100u, 0xAA99CCDDu],  [R0, 0x66778899u ; R1, 0x102u]))
     ]
 
-
+    [<Tests>]
+    let t9 =        
+      let fsConfig = {
+              FsCheckConfig.defaultConfig with
+                  replay = Some (0,0) // seed for RNG. Means that the same tests are done each run
+                                      // replace by None for a random time-based seed and therefore
+                                      // new tests each time that will not cache
+                  maxTest = 100       // number of random tests
+              }
+      testPropertyWithConfig fsConfig "Testing LDR REG1, [REG2] as property test." testRandLDRReg

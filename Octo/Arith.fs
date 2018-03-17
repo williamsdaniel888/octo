@@ -405,13 +405,9 @@ module Arith =
                     if fst a = x then (fst a, uint32(result)) else (fst a, snd a)
                     )
                 |> Map.ofList
-        let mm' = 
-            Map.toList state.MM 
-                |> List.map (fun a -> 
-                    if fst a = WA 0x0u then (fst a, Code args) else (fst a, snd a)
-                    )
-                |> Map.ofList
-        {Fl = flags'; Regs = regs'; MM = mm'}
+            //option to add instruc to mem disabled here, TODO: enable at top-level
+            //state.MM.Add(WA 0x0u, Code args)
+        {Fl = flags'; Regs = regs'; MM = state.MM}
 
     type evalIn<'INS> = {pd : Result<Parse<Instr>,ErrInstr> option; st : FlRegMemRecord<'INS>}
 
@@ -426,7 +422,7 @@ module Arith =
         let conditionMet =
             let f = x.st.Fl
             instCond
-            |> Result.map (fun a -> snd a)
+            |> Result.map (snd)
             |> Result.map (fun b -> 
                 match b with
                 | Ceq -> if (f.Z = true) then true else false
@@ -447,7 +443,7 @@ module Arith =
                 | Cal -> true
                 )
         instCond
-        |> Result.map (fun a -> fst a)
+        |> Result.map fst
         |> Result.map (fun b ->
             let op2Status =
                 match (flexOp2 b.ap.op2 x.st) with
@@ -522,13 +518,14 @@ module Arith =
                             |"CMP" -> engine p x.st (fun x y _ -> x - y) |> Ok
                             |"CMN" -> engine p x.st (fun x y _ -> x + y) |> Ok
                         |_ -> 
-                            let mm' = 
-                                Map.toList x.st.MM 
-                                |> List.map (fun a -> 
-                                    if fst a = WA 0x0u then (fst a, Code p) else (fst a, snd a)
-                                    )
-                                |> Map.ofList
-                            {x.st with MM = mm'} |> Ok
+                            // instruc to mem disabled
+                            // let mm' = 
+                            //     Map.toList x.st.MM 
+                            //     |> List.map (fun a -> 
+                            //         if fst a = WA 0x0u then (fst a, Code p) else (fst a, snd a)
+                            //         )
+                            //     |> Map.ofList
+                            {x.st with MM = x.st.MM} |> Ok
                 |Error e -> Error e
         )
 

@@ -122,7 +122,7 @@ module CommonLex =
     /// classes of instructions (example, add/change this is needed)
     // ldr/str -> MEMSINGLE
     // ldm/stm -> MEMMULT
-    type InstrClass = | MEMSINGLE | MEMMULT | DP
+    type InstrClass = | MEMSINGLE | MEMMULT | DP | LOG | LOGtst
 
     /// specification of set of instructions
     type OpSpec = {
@@ -213,3 +213,6 @@ module CommonLex =
             PSize = pr.PSize
             }
         | Error e -> Error (fMapE e)
+
+    //this is a generic function for VisUAL tests and any prop tests needed for indiv modules
+    let getRandElemFromList (lst : 'a list) : 'a = (List.item (System.Random().Next lst.Length) lst)

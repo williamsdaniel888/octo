@@ -332,7 +332,7 @@
  TYPE DEFINITIONS AND TOOLS
 </summary>
 </member>
-<member name="M:Arith.Arith.eval(Arith.Arith.evalIn)">
+<member name="M:Arith.Arith.eval``1(Arith.Arith.evalIn{``0})">
 <summary>
  eval: evalIn -&gt; Result&lt;Parse&lt;Instr&gt;,ErrInstr&gt;
  Evaluate a parsed instruction of unknown validity
@@ -675,17 +675,10 @@ main execute stage
  Ccaheing is also provided so that second time round tests run much faster
 </summary>
 </member>
-<member name="T:VisualTest.VTest.test_op">
+<member name="T:VisualTest.VTest.TestOpCode">
 <summary>
  to test the testbench, create many tests with assembler
  this is enough for each test to need being run separately
-</summary>
-</member>
-<member name="P:VisualTest.VTest.frametests">
-<summary>
- implements random property-based tests of the framework
- tests that read/write of registers and flags is consistent for random
- input values
 </summary>
 </member>
 <member name="M:VisualTest.VTest.VisualUnitTest(VisualTest.VCommon.Params,System.String,System.String,System.String,Microsoft.FSharp.Collections.FSharpList{System.Tuple{VisualTest.VCommon.Out,System.Int32}})">

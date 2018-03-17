@@ -58,7 +58,8 @@
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="EEExtensions.fs" />
     <Compile Include="Common.fs" />
-    <Compile Include="DP.fs" />
+    <Compile Include="Arith.fs" />
+    <None Include="Script1.fsx" />
     <Compile Include="Memory.fs" />
     <Compile Include="CommonTop.fs" />
     <Compile Include="VCommon.fs" />

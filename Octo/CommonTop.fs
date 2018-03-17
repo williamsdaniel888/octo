@@ -43,7 +43,7 @@ module CommonTop =
     //main IMATCH fn and parseAndEval fn
     (* *)
     (* THIS ONLY WORKS FOR DP ATM*)
-    let IMatch (state: DataPathAndMem<'INS>) (ld: LineData) : Result<DataPathAndMem<'INS>, 'ERR> option =
+    let IMatch (state: DataPathAndMem<'INS>) (ld: LineData) : Result<DataPathAndMem<'INS>, string> option =
         let pConv fr fe p = pResultInstrMap fr fe p |> Some
         match ld with
         | Arith.IMatch pa -> 

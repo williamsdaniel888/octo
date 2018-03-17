@@ -128,9 +128,9 @@ module VTest =
     /// to test the testbench, create many tests with assembler
     /// this is enough for each test to need being run separately
     //For each function check that output flags and registers are correctly updated, 
-    type testOpCode = |ADD |ADC |SUB |SBC |RSB |RSC |CMP |CMN
+    type TestOpCode = |ADD |ADC |SUB |SBC |RSB |RSC |CMP |CMN
     
-    let createArgs (opcode:testOpCode) (set_flags:bool) (dest:string option) (op1:string) (op2:string) =
+    let createArgs (opcode:TestOpCode) (set_flags:bool) (dest:string option) (op1:string) (op2:string) =
         let op =
             match opcode with
             |ADD -> "ADD"
@@ -151,8 +151,8 @@ module VTest =
                 |None -> ""
         op + sprintf "%s %s, %s" rd op1 op2
     
-    //need full namespace path due to "DP" keyword from commonLex
-    let stateIn : DataPathAndMem<'INS> = 
+    //the unit input allows us to maintain generic types
+    let stateIn () = 
         let flagsIn = 
             defaultParas.InitFlags 
             |> fun a -> 
@@ -184,16 +184,15 @@ module VTest =
         |> List.reduce (+)
         //sprintf "%d %d" (System.Convert.ToUInt16 fl.N) (System.Convert.ToUInt16 fl.N)
 
-
-    let testEngine (opcode:testOpCode) (set_flags:bool) (dest:string option) (op1:string) (op2:string)= 
+    let testEngine (opcode:TestOpCode) (set_flags:bool) (dest:string option) (op1:string) (op2:string)= 
         let argIn = createArgs opcode set_flags dest op1 op2
-        let test_id = argIn
-        let evaluatedOutput = CommonTop.parseAndExecuteLine None (WA defaultParas.MemReadBase) argIn stateIn
+        let testId = argIn
+        printfn "%s" testId
+        let evaluatedOutput = CommonTop.parseAndExecuteLine None (WA defaultParas.MemReadBase) argIn (stateIn ())
         let evaluatedFlagsReg = 
             evaluatedOutput
             |> Result.map (fun a ->
-                let flOut =  //"1000" //get flag output from engine
-                    //printfn "String result %A\t Actual: %A\n" (flag2BinStr a.DP.Fl) (a.DP.Fl)
+                let flOut =  //get flag output from engine
                     (flag2BinStr a.DP.Fl)
                 let regOut = 
                     let rd =
@@ -208,19 +207,20 @@ module VTest =
                 flOut,regOut
                 )
         match evaluatedFlagsReg with
-        | Ok a -> vTest test_id argIn (fst a) (snd a)
+        | Ok a -> vTest testId argIn (fst a) (snd a)
         | Error e -> failwithf "Instruction: %s; Error Detected: %s" argIn e
 
-    //TODO: allow all permutations of dest,r1,r2; include Shifts
-    //TODO: allow for full range of literals and negative immediates, not just [0,256]
-    let getRandElemFromList (lst : 'a list) : 'a = (List.item (System.Random().Next lst.Length) lst)
+    //TODO: allow all permutations of dest,r1,r2 - DONE
+    //TODO: include Shifts
+    //TODO: allow for full range of literals and negative immediates, not just [0,256] - DONE
+    //let getRandElemFromList (lst : 'a list) : 'a = (List.item (System.Random().Next lst.Length) lst) //now defined in commonlex!
 
-    let DP_test_lit (m:int) (opcode:testOpCode) (set_flags:bool)= 
+    let dpTestLit (m:int) (opcode:TestOpCode) (set_flags:bool)= 
         let allowedRIntLst = [0..12] @ [14]
         let op1 = regStrings.[inverseRegNums.[getRandElemFromList allowedRIntLst]]
         if (opcode = RSB) || (opcode = RSC) 
-            then [0..m] 
-            else [-m..m]
+            then [(1<<<8)..(1<<<8)..(m<<<8)] 
+            else [((-m)<<<8)..(1<<<8)..(m<<<8)]
         |> List.filter (fun a -> (Map.containsKey (uint32 (a)) allowedLiterals) || (Map.containsKey (uint32 (-a)) allowedLiterals))    
         //Map.toList allowedLiterals |> List.map (fst) |> List.map (int)
         |> List.map (fun n -> 
@@ -233,79 +233,97 @@ module VTest =
                 testEngine opcode set_flags (Some dest) op1 op2 
             )
 
-    let DP_test_regs (opcode:testOpCode) (set_flags:bool)= 
+
+    let dpTestRegs (opcode:TestOpCode) (set_flags:bool)= 
         let allowedRIntLst = [0..12] @ [14]
-        let op1 = regStrings.[inverseRegNums.[getRandElemFromList allowedRIntLst]]
-        let op2 = regStrings.[inverseRegNums.[getRandElemFromList allowedRIntLst]]
-        match opcode with
-            | CMN | CMP -> 
-                [testEngine opcode set_flags None op1 op2]
-            | _ ->
-                let dest = 
-                    getRandElemFromList allowedRIntLst
-                    |> fun n -> regStrings.[inverseRegNums.[n]]
-                    |> Some
-                [testEngine opcode set_flags dest op1 op2]
-    
+        let op1 = ["R8"]//[regStrings.[inverseRegNums.[getRandElemFromList allowedRIntLst]]]
+        //let op2 = [regStrings.[inverseRegNums.[getRandElemFromList allowedRIntLst]]]
+        //let op3 = List.map (fun a -> sprintf "R%d" a) [0..3]
+        let flop2 = [sprintf "R12, RRX"] //List.allPairs op2 op3 |> List.map (fun a -> sprintf "%s, LSL %s" (fst a) (snd a)) //regStrings.[inverseRegNums.[getRandElemFromList allowedRIntLst]] 
+        //RRX
+        //ADC R2, R8, R14, RRX
+        //ADDS R2, R8, R14, RRX
+        //SUBS R2, R14, R14, RRX
+        //RSCS R2, R5, R5, RRX
+        //RSBS R2, R10, R7, RRX
+        //SBCS R2, R7, R7, RRX
+        //SUBS R2, R8, R8, RRX
+        //LSL
+        //RSBS R2, R3, R3, LSL R3
+        //SBCS R2, R9, R7, LSL R3
+
+        List.allPairs op1 flop2
+        |> List.map (fun pp ->
+            match opcode with
+                | CMN | CMP -> 
+                    testEngine opcode set_flags None (fst pp) (snd pp)
+                    //[testEngine opcode set_flags None op1 flop2]
+                | _ ->
+                    let dest = Some "R2"
+                        //getRandElemFromList allowedRIntLst
+                        //|> fun n -> regStrings.[inverseRegNums.[n]]
+                        //|> Some
+                    //[testEngine opcode set_flags dest op1 flop2]
+                    testEngine opcode set_flags dest (fst pp) (snd pp)
+        )
     let runVisUALIncrTests = true
     
-    //Basic Literal Tests (must do outside [0,255])
     [<Tests>]
     let allIncrTests =
         match runVisUALIncrTests with
         | true ->
             testList "ALL DP Instructions" [
-                testList "All DP Instructions Literal Tests"  [
-                    testList "All ADD SubClass Instructions" [
-                        testList "Literal test with ADD" (DP_test_lit 10 ADD true)
-                        testList "Literal test with ADDS" (DP_test_lit 10 ADD false)
-                        testList "Literal test with ADC" (DP_test_lit 10 ADC true)
-                        testList "Literal test with ADCS" (DP_test_lit 10 ADC false)
-                    ]
-                    testList "All SUB SubClass Instructions" [
-                        testList "Literal test with SUB" (DP_test_lit 10 SUB true)
-                        testList "Literal test with SUBS" (DP_test_lit 10 SUB false)
-                        testList "Literal test with SBC" (DP_test_lit 10 SBC true)
-                        testList "Literal test with SBCS" (DP_test_lit 10 SBC false)
-                    ]
-                    testList "All RSB SubClass Instructions" [
-                        testList "Literal test with RSB" (DP_test_lit 10 RSB true)
-                        testList "Literal test with RSBS" (DP_test_lit 10 RSB false)
-                        testList "Literal test with RSC" (DP_test_lit 10 RSC true)
-                        testList "Literal test with RSCS" (DP_test_lit 10 RSC false)
-                    ]
-                    testList "All COMPARISON SubClass Instructions" [
-                        testList "Literal test with CMP" (DP_test_lit 10 CMP false)
-                        //testList "Literal test with CMPS" (DP_test_lit CMP true) //REDUNDANT
-                        testList "Literal test with CMN" (DP_test_lit 10 CMN false)
-                        //testList "Literal test with CMNS" (DP_test_lit CMN true) //REDUNDANT
-                    ]
-                ]
+                //testList "All DP Instructions Literal Tests"  [
+                //    testList "All ADD SubClass Instructions" [
+                //        testList "Literal test with ADDS" (dpTestLit 10 ADD true)
+                //        testList "Literal test with ADD" (dpTestLit 10 ADD false)
+                //        testList "Literal test with ADCS" (dpTestLit 10 ADC true)
+                //        testList "Literal test with ADC" (dpTestLit 10 ADC false)
+                //    ]
+                //    testList "All SUB SubClass Instructions" [
+                //        testList "Literal test with SUBS" (dpTestLit 10 SUB true)
+                //        testList "Literal test with SUB" (dpTestLit 10 SUB false)
+                //        testList "Literal test with SBCS" (dpTestLit 10 SBC true)
+                //        testList "Literal test with SBC" (dpTestLit 10 SBC false)
+                //    ]
+                //    testList "All RSB SubClass Instructions" [
+                //        testList "Literal test with RSBS" (dpTestLit 10 RSB true)
+                //        testList "Literal test with RSB" (dpTestLit 10 RSB false)
+                //        testList "Literal test with RSCS" (dpTestLit 10 RSC true)
+                //        testList "Literal test with RSC" (dpTestLit 10 RSC false)
+                //    ]
+                //    testList "All COMPARISON SubClass Instructions" [
+                //        testList "Literal test with CMP" (dpTestLit 10 CMP false)
+                //        //testList "Literal test with CMPS" (dpTestLit CMP true) //REDUNDANT
+                //        testList "Literal test with CMN" (dpTestLit 10 CMN false)
+                //        //testList "Literal test with CMNS" (dpTestLit CMN true) //REDUNDANT
+                //    ]
+                //]
                 testList "All DP Instructions Register Tests" [
                     testList "All ADD SubClass Instructions" [
-                        testList "Register test with ADD" (DP_test_regs ADD true)
-                        testList "Register test with ADDS" (DP_test_regs ADD false)
-                        testList "Register test with ADC" (DP_test_regs ADC true)
-                        testList "Register test with ADCS" (DP_test_regs ADC false)
+                        testList "Register test with ADDS" (dpTestRegs ADD true)
+                        testList "Register test with ADD" (dpTestRegs ADD false)
+                        testList "Register test with ADCS" (dpTestRegs ADC true)
+                        testList "Register test with ADC" (dpTestRegs ADC false)
                     ]
                     testList "All SUB SubClass Instructions" [
-                        testList "Register test with SUB" (DP_test_regs SUB true)
-                        testList "Register test with SUBS" (DP_test_regs SUB false)
-                        testList "Register test with SBC" (DP_test_regs SBC true)
-                        testList "Register test with SBCS" (DP_test_regs SBC false)
+                        testList "Register test with SUBS" (dpTestRegs SUB true)
+                        testList "Register test with SUB" (dpTestRegs SUB false)
+                        testList "Register test with SBCS" (dpTestRegs SBC true)
+                        testList "Register test with SBC" (dpTestRegs SBC false)
                     ]
                     testList "All RSB SubClass Instructions" [
-                        testList "Register test with RSB" (DP_test_regs RSB true)
-                        testList "Register test with RSBS" (DP_test_regs RSB false)
-                        testList "Register test with RSC" (DP_test_regs RSC true)
-                        testList "Register test with RSCS" (DP_test_regs RSC false)
+                        testList "Register test with RSBS" (dpTestRegs RSB true)
+                        testList "Register test with RSB" (dpTestRegs RSB false)
+                        testList "Register test with RSCS" (dpTestRegs RSC true)
+                        testList "Register test with RSC" (dpTestRegs RSC false)
                     ]
-                    testList "All COMPARISON SubClass Instructions" [
-                        testList "Register test with CMP" (DP_test_regs CMP false)
-                        //testList "Register test with CMPS" (DP_test_regs CMP true) //REDUNDANT
-                        testList "Register test with CMN" (DP_test_regs CMN false)
-                        //testList "Register test with CMNS" (DP_test_regs CMN true) //REDUNDANT
-                    ]
+                    //testList "All COMPARISON SubClass Instructions" [
+                    //    testList "Register test with CMP" (dpTestRegs CMP false)
+                    //    //testList "Register test with CMPS" (dpTestRegs CMP true) //REDUNDANT
+                    //    testList "Register test with CMN" (dpTestRegs CMN false)
+                    //    //testList "Register test with CMNS" (dpTestRegs CMN true) //REDUNDANT
+                    //]
                 ]
             ]
         | false -> testList "EmptyTestList" []
