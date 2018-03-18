@@ -213,4 +213,5 @@ module CommonLex =
         | Error e -> Error (fMapE e)
 
     //this is a generic function for VisUAL tests and any prop tests needed for indiv modules
-    let getRandElemFromList (lst : 'a list) : 'a = (List.item (System.Random().Next lst.Length) lst)
+    let rng = System.Random()
+    let getRandElemFromList (lst : 'a list) : 'a = (List.item (rng.Next lst.Length) lst)
