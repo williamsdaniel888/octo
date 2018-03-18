@@ -16,6 +16,7 @@ module VTest =
     open Common.CommonLex
     open CommonTop
     open Arith
+    open CommonTop.CommonTop
 
     /// parameters setting up the testing framework
     /// WARNING: PostludeLength must be changed if Postlude is changed
@@ -212,6 +213,10 @@ module VTest =
         match evaluatedFlagsReg with
         | Ok a -> vTest testId argIn (fst a) (snd a)
         | Error (ERRTOPLEVEL e) -> failwithf "Instruction: %s; Error Detected: %s" argIn e
+        | Error (ERRIAR e) -> failwithf "Instruction: %s; Error Detected: %s" argIn e
+        | Error (ERRIMEM e) -> failwithf "Instruction: %s; Error Detected: %s" argIn e
+
+
 
     //TODO: allow all permutations of dest,r1,r2 - DONE
     //TODO: include Shifts

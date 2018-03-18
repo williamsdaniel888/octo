@@ -34,10 +34,13 @@ module Arith =
     let allowedLiterals = 
         [0..2..30] 
         |> List.allPairs [0u..255u] 
-        |> List.map (fun (lit,n) -> ((lit >>> n) + (lit <<< 32-n)),(lit,n)) //)|> List.sort
+        |> List.map (fun (lit,n) -> if n = 0 then (lit,(lit,n)) else ((lit >>> n) + (lit <<< 32-n)),(lit,n))
         |> Map.ofList
     //let bad = [0u..255u] |> List.filter (fun n -> (List.contains n allowedLiterals)<>false)
-    //let p = Map.containsKey 2147483718u allowedLiterals ///ERROR IS HERE - RSB/RSC Neg OP2
+    //let p = (fun (lit,n) -> if n = 0 then (lit,(lit,n)) else ((lit >>> n) + (lit <<< 32-n)),(lit,n))
+    //p (219u,0)
+    //let q a = Map.containsKey a allowedLiterals
+    //q 486u
     //[0x80000000u..0x81000000u] |> List.filter (fun a -> Map.containsKey (uint32(a)) allowedLiterals)  
 
     //Verify whether a uint32 is a valid immediate
