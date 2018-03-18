@@ -26,8 +26,6 @@ module CommonTop =
         | ERRIAR of Arith.ErrInstr
         | ERRTOPLEVEL of string
     
-    
-
     type CondInstr = Condition * Instr
 
     let dpMemTuple2DPAndMem (x : Result<(MachineMemory<'INS> * DataPath),'ERR>) : Result<DataPathAndMem<'INS>, 'ERR> =
@@ -95,10 +93,7 @@ module CommonTop =
             let pNoLabel =
                 match words with
                 | opc :: operands -> 
-                    let p = makeLineData opc operands
-                    let pp = p.Label |> function |Some x -> x |None -> ""
-                    printfn "LABEL %s, OPCODE %s, OPS %s" pp p.OpCode p.Operands
-                    p
+                    makeLineData opc operands
                     |> IMatch
                 | _ -> None
             match pNoLabel, words with
@@ -106,12 +101,11 @@ module CommonTop =
                 let opc::operands = words
                 {makeLineData opc operands with Label = None} |> EMatch state
             | None, label :: opc :: operands -> 
-                printfn "Label %s OPC %s" label opc
                 match { makeLineData opc operands with Label=Some label} |> EMatch state with
                 | None -> 
-                    ERRTOPLEVEL (sprintf "BAD OPC Unimplemented instruction %s" opc) |> Error |> Some
+                    ERRTOPLEVEL (sprintf "BAD_OPC: Unimplemented instruction %s" opc) |> Error |> Some
                 | Some pa -> Some pa
-            | _ -> ERRTOPLEVEL (sprintf "Unimplemented instruction %A" words) |> Error |> Some
+            | _ -> ERRTOPLEVEL (sprintf "BAD_WORDS: Unimplemented instruction %A" words) |> Error |> Some
         asmLine
         |> removeComment
         |> splitIntoWords

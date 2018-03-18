@@ -126,20 +126,29 @@ module Arith =
         |> function
             |[|q0;q1|] ->
                 match q0,q1 with
+                    //TWO-OPERAND INSTRUCTIONS WITHOUT SHIFT
                     |Reg' a, Reg' b -> [Dest None; Op1' a; Op2' (Register b)] |> Ok
                     |Reg' a, Nmr' b -> 
                         checkOp2Literal(uint32(b)) |> Result.map (fun x -> [Dest None; Op1' a; Op2' x])
                     |_ -> Error "TOK: Invalid syntax: format must be \"op1, op2\""
             |[|q0;q1;q2|] ->
                 match q0,q1,q2 with
+                    //TWO-OPERAND INSTRUCTIONS WITH SHIFT
+                    |Reg' b, Reg' c, ASR' d -> [Dest None; Op1' b; Op2' (ASR(c,d))] |> Ok
+                    |Reg' b, Reg' c, LSR' d -> [Dest None; Op1' b; Op2' (LSR(c,d))] |> Ok
+                    |Reg' b, Reg' c, LSL' d -> [Dest None; Op1' b; Op2' (LSL(c,d))] |> Ok
+                    |Reg' b, Reg' c, ROR' d -> [Dest None; Op1' b; Op2' (ROR(c,d))] |> Ok
+                    |Reg' b, Reg' c, RRX' _ -> [Dest None; Op1' b; Op2' (RRX(c))] |> Ok
+                    //THREE-OPERAND INSTRUCTIONS WITHOUT SHIFT
                     |Reg' a, Reg' b, Reg' c -> [Dest (Some a); Op1' b; Op2' (Register c)] |> Ok
                     |Reg' a, "R15", NI' c |Reg' a, "PC", NI' c ->
                         checkImm12 c |> Result.map (fun x-> [Dest (Some a); Op1' R15; Op2' x]) 
                     |Reg' a, Reg' b, Nmr' c ->
                         checkOp2Literal(uint32(c)) |> Result.map (fun x-> [Dest (Some a); Op1' b; Op2' x]) 
-                    |_ -> Error "TOK: Invalid syntax: format must be \"dest, op1, op2\""
+                    |_ -> Error "TOK: Invalid syntax: format must be \"dest, op1, op2\" or \"op1, op2\""
             |[|q0;q1;q2;q3|] ->  
                 match q0,q1,q2,q3 with
+                    //THREE-OPERAND INSTRUCTIONS WITH SHIFT
                     |Reg' a, Reg' b, Reg' c, ASR' d -> [Dest (Some a); Op1' b; Op2' (ASR(c,d))] |> Ok
                     |Reg' a, Reg' b, Reg' c, LSR' d -> [Dest (Some a); Op1' b; Op2' (LSR(c,d))] |> Ok
                     |Reg' a, Reg' b, Reg' c, LSL' d -> [Dest (Some a); Op1' b; Op2' (LSL(c,d))] |> Ok
@@ -312,7 +321,7 @@ module Arith =
                                     |"" -> Ok c
                                     |_ -> Error "NP: Instruction must be of form ADD{Cond} PC, PC, Rm, where Rm is not PC and not SP"
                                 |_ -> Error "NP: Invalid operands"
-                    let (WA la) = ls.LoadAddr // memory address this instruction is loaded
+                    let (WA la) = ls.LoadAddr // memory address this instruction is loaded from
                     match pValMap with
                         |Ok c ->
                             Ok {ic = instrC; rt = root; sf = suffix; cnd = pCond; ap = ops}
@@ -326,7 +335,8 @@ module Arith =
                                     // ls.LoadAddr. Some type conversion is needed since the
                                     // label value is a number and not necessarily a word address
                                     // it does not have to be div by 4, though it usually is
-                                    PLabel = ls.Label |> Option.map (fun lab -> lab, la) ; 
+                                    PLabel = 
+                                        ls.Label |> Option.map (fun lab -> lab, la) ; 
                                     // this is the number of bytes taken by the instruction
                                     // word loaded into memory. For arm instructions it is always 4 bytes. 
                                     // For data definition DCD etc it is variable.
@@ -341,7 +351,7 @@ module Arith =
                         |Error e -> Error e
                 Map.tryFind ls.OpCode opCodes // lookup opcode to see if it is known
                 |> Option.map parse' // if unknown keep none, if known parse it.
-            |Error x -> None
+            |Error x -> Some (Error x)
 
     // Parse Active Pattern used by top-level code
     let (|IMatch|_|) = parser
