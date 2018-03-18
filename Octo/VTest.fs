@@ -189,6 +189,9 @@ module VTest =
         let evaluatedOutput = CommonTop.parseAndExecuteLine None (WA defaultParas.MemReadBase) argIn (stateIn ())
         let evaluatedFlagsReg = 
             evaluatedOutput
+            |> function 
+                |Some x -> x 
+                |None -> Error (ERRTOPLEVEL "")
             |> Result.map (fun a ->
                 let flOut =  //get flag output from engine
                     (flag2BinStr a.DP.Fl)
@@ -206,7 +209,7 @@ module VTest =
                 )
         match evaluatedFlagsReg with
         | Ok a -> vTest testId argIn (fst a) (snd a)
-        | Error e -> failwithf "Instruction: %s; Error Detected: %s" argIn e
+        | Error (ERRTOPLEVEL e) -> failwithf "Instruction: %s; Error Detected: %s" argIn e
 
     //TODO: allow all permutations of dest,r1,r2 - DONE
     //TODO: include Shifts

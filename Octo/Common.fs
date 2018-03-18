@@ -203,8 +203,6 @@ module CommonLex =
             // Note subtle point. {pr with Pinst = ...} will not work here
             // That is because applying fmap changes the type of PInstr
             // and therefore the type of the record.
-
-
             //this is a result of type Parse
             Ok {
             PInstr = fMap ins  //parsedInstruction: LDR, STR, etc.

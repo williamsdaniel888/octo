@@ -9,12 +9,12 @@ module Arith =
     type Reg = RName
     type SVal = NumericValue of int | RValue of Reg
     type Shift = Reg*SVal
-    type FlRegMemRecord<'INS> = {
-        Fl: Flags; // Flags
-        Regs:Map<RName,uint32> // map representing registers. 
-                               // Must be correctly initialised
-        MM: MachineMemory<'INS> // map showing the contents of all memory
-    }
+    //type FlRegMemRecord<'INS> = {
+    //    Fl: Flags; // Flags
+    //    Regs:Map<RName,uint32> // map representing registers. 
+    //                           // Must be correctly initialised
+    //    MM: MachineMemory<'INS> // map showing the contents of all memory
+    //}
 
     type Op2 = 
         | IMM12 of uint32
@@ -164,8 +164,8 @@ module Arith =
     //FLEXIBLE OP2 EVALUATION TOOLS
 
     //Checks validity of input Shift, performs shift on register if possible
-    let doShift (ro: Shift) (cpuData: FlRegMemRecord<'INS>) bitOp : Result<uint32,string> =
-        let rvalue = fst ro |> fun a -> Map.find a cpuData.Regs
+    let doShift (ro: Shift) (cpuData: DataPathAndMem<'INS>) bitOp : Result<uint32,string> =
+        let rvalue = fst ro |> fun a -> Map.find a cpuData.DP.Regs
         let svalue = snd ro
         match svalue with 
         |NumericValue s -> 
@@ -182,18 +182,18 @@ module Arith =
             //Diverges from VisUAL behavior, follows Tick 3 guidance
             checkOp2Register r
             |> Result.map (fun re ->
-                int((Map.find re cpuData.Regs) &&& 0x1Fu) 
+                int((Map.find re cpuData.DP.Regs) &&& 0x1Fu) 
                 |> bitOp rvalue )
             //|> Result.bind checkOp2Literal
         
     //Perform RRX on a register's contents
-    let makeRRX (rv:Reg) (cpuData:FlRegMemRecord<'INS>) =
-        let newMSB = if cpuData.Fl.C then 0x80000000u else 0x00000000u
-        Map.find rv cpuData.Regs
+    let makeRRX (rv:Reg) (cpuData:DataPathAndMem<'INS>) =
+        let newMSB = if cpuData.DP.Fl.C then 0x80000000u else 0x00000000u
+        Map.find rv cpuData.DP.Regs
         |> fun reg -> Ok ( newMSB + (reg>>>1))
 
     //Evaluates a flexible op2 value, returns uint32
-    let flexOp2 (op2:Op2) (cpuData:FlRegMemRecord<'INS>) = 
+    let flexOp2 (op2:Op2) (cpuData:DataPathAndMem<'INS>) = 
         match op2 with
         | IMM12 x -> x |> Ok //|> checkImm12
         | LiteralData (RC {K=a;R=b}) -> 
@@ -202,7 +202,7 @@ module Arith =
         | LiteralData (Swappable x) -> x |> Ok //checkOp2Literal x
         | Register register -> 
             checkOp2Register register 
-            |> Result.map (fun a -> Map.find a cpuData.Regs)
+            |> Result.map (fun a -> Map.find a cpuData.DP.Regs)
             //|> Result.map (fun a -> Map.find a cpuData.Regs)
             //|> Result.bind checkOp2Literal
         | LSL shift -> doShift shift cpuData (<<<)
@@ -378,11 +378,11 @@ module Arith =
         {N=negative;Z=zero;C=carry;V=overflow}
 
     // HOF for arithmetic functions
-    let engine (args: Instr) (state: FlRegMemRecord<'INS>) bitOp : FlRegMemRecord<'INS> =
+    let engine (args: Instr) (state: DataPathAndMem<'INS>) bitOp : DataPathAndMem<'INS> =
         let dest' = args.ap.dest
         let op1' = 
             args.ap.op1 
-            |> fun a -> Map.find a state.Regs
+            |> fun a -> Map.find a state.DP.Regs
             |> int64
         let op2' =
             flexOp2 args.ap.op2 state
@@ -394,38 +394,31 @@ module Arith =
         let op1MSBset = op1' &&& 0x100000000L <>0L
         let op2MSBset = op2' &&& 0x80000000L <>0L
         let root = args.rt
-        let result = bitOp op1' op2' state.Fl.C
+        let result = bitOp op1' op2' state.DP.Fl.C
         let flags' =
             if args.sf ="S" || root = "CMP" || root = "CMN" 
                 then 
                     //printfn "Root,Op1',Op2' is %s,%d,%d" root op1' op2'
                     getFlags result root op1MSBset op2MSBset (op1'=0L && op2'=0L)
-                else state.Fl
+                else state.DP.Fl
         let regs' = 
             match dest' with
-            |None -> state.Regs
+            |None -> state.DP.Regs
             |Some x -> 
-                Map.toList state.Regs 
+                Map.toList state.DP.Regs 
                 |> List.map (fun a -> 
                     if fst a = x then (fst a, uint32(result)) else (fst a, snd a)
                     )
                 |> Map.ofList
             //option to add instruc to mem disabled here, TODO: enable at top-level
             //state.MM.Add(WA 0x0u, Code args)
-        {Fl = flags'; Regs = regs'; MM = state.MM}
-
-    type evalIn<'INS> = {pd : Result<Parse<Instr>,ErrInstr> option; st : FlRegMemRecord<'INS>}
-
-    /// eval: evalIn -> Result<Parse<Instr>,ErrInstr>
+        {DP = {Fl = flags'; Regs = regs'}; MM = state.MM}
+        
     /// Evaluate a parsed instruction of unknown validity
-    let eval (x:evalIn<'INS>) : Result<FlRegMemRecord<'INS>, ErrInstr> =
-        let instCond = 
-            match x.pd with
-                |None -> Error "EV: Invalid opcode"
-                |Some (Error e) -> Error e
-                |Some (Ok x) -> Ok (x.PInstr,x.PCond)
+    let eval (pd : Parse<Instr>) (st : DataPathAndMem<'INS>) : Result<DataPathAndMem<'INS>, 'E> =
+        let instCond = Ok (pd.PInstr, pd.PCond)            
         let conditionMet =
-            let f = x.st.Fl
+            let f = st.DP.Fl
             instCond
             |> Result.map (snd)
             |> Result.map (fun b -> 
@@ -451,12 +444,12 @@ module Arith =
         |> Result.map fst
         |> Result.map (fun b -> //Perform a swap if needed. Must distinguish between invalid negative imm and negative op2 resulting from a shift.
             let op2Status =
-                let s = 
+                let s =
                     match b.ap.op2 with
-                    | IMM12 x -> x |> checkImm12
-                    | LiteralData (RC {K=a;R=b}) -> (a >>> b) + (a <<< 32-b) |> checkOp2Literal
-                    | LiteralData (Swappable x) -> x |> checkOp2Literal
-                    | _ -> Ok b.ap.op2
+                        | IMM12 x -> x |> checkImm12
+                        | LiteralData (RC {K=a;R=b}) -> (a >>> b) + (a <<< 32-b) |> checkOp2Literal
+                        | LiteralData (Swappable x) -> x |> checkOp2Literal
+                        | _ -> Ok b.ap.op2
                 match s with
                 |Ok (LiteralData (Swappable p)) -> 
                     match b.rt with
@@ -521,29 +514,22 @@ module Arith =
                     match conditionMet with
                         |Ok true ->
                             match p.rt with
-                            |"ADD" -> engine p x.st (fun x y _ -> x + y) |> Ok
-                            |"SUB" -> engine p x.st (fun x y _ -> x - y) |> Ok
-                            |"ADC" -> engine p x.st (fun x y z -> x + y + (if z then 1L else 0L)) |> Ok
-                            |"SBC" -> engine p x.st (fun x y z -> x - y + (if z then 1L else 0L) - 1L)  |> Ok
-                            |"RSB" -> engine p x.st (fun x y _ -> y - x) |> Ok
-                            |"RSC" -> engine p x.st (fun x y z -> y - x + (if z then 1L else 0L) - 1L) |> Ok
-                            |"CMP" -> engine p x.st (fun x y _ -> x - y) |> Ok
-                            |"CMN" -> engine p x.st (fun x y _ -> x + y) |> Ok
+                            |"ADD" -> engine p st (fun x y _ -> x + y) |> Ok
+                            |"SUB" -> engine p st (fun x y _ -> x - y) |> Ok
+                            |"ADC" -> engine p st (fun x y z -> x + y + (if z then 1L else 0L)) |> Ok
+                            |"SBC" -> engine p st (fun x y z -> x - y + (if z then 1L else 0L) - 1L)  |> Ok
+                            |"RSB" -> engine p st (fun x y _ -> y - x) |> Ok
+                            |"RSC" -> engine p st (fun x y z -> y - x + (if z then 1L else 0L) - 1L) |> Ok
+                            |"CMP" -> engine p st (fun x y _ -> x - y) |> Ok
+                            |"CMN" -> engine p st (fun x y _ -> x + y) |> Ok
                         |_ -> 
                             // instruc to mem disabled
                             // let mm' = 
-                            //     Map.toList x.st.MM 
+                            //     Map.toList st.MM 
                             //     |> List.map (fun a -> 
                             //         if fst a = WA 0x0u then (fst a, Code p) else (fst a, snd a)
                             //         )
                             //     |> Map.ofList
-                            {x.st with MM = x.st.MM} |> Ok
+                            {st with MM = st.MM} |> Ok
                 |Error e -> Error e
         )
-
-    //For convenience: parse and evaluate line
-    let parse_eval (x:LineData) (state:FlRegMemRecord<'INS>) =
-        x  
-        |> parser
-        |> fun a -> {pd = a; st = state}
-        |> eval

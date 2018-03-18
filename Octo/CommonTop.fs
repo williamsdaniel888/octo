@@ -17,23 +17,18 @@ module CommonTop =
     /// allows different modules to return different instruction types
     type Instr =
         | IMEM of Memory.Instr
-        | IDP of  Arith.Instr
+        | IAR of Arith.Instr
     
     /// allows different modules to return different error info
     /// by default all return string so this is not needed
     type ErrInstr =
         | ERRIMEM of Memory.ErrInstr
-        | ERRIDP of Arith.ErrInstr
+        | ERRIAR of Arith.ErrInstr
         | ERRTOPLEVEL of string
     
     
 
     type CondInstr = Condition * Instr
-
-    let FlRegMem2DPAndMem (x : Result<FlRegMemRecord<'INS>,'ERR>) : Result<DataPathAndMem<'INS>, 'ERR> =
-        match x with
-        | Ok(x) -> Ok ({DP = {Fl=x.Fl ; Regs=x.Regs}; MM = x.MM})
-        | Error(x) -> Error(x)
 
     let dpMemTuple2DPAndMem (x : Result<(MachineMemory<'INS> * DataPath),'ERR>) : Result<DataPathAndMem<'INS>, 'ERR> =
         match x with
@@ -41,32 +36,38 @@ module CommonTop =
         | Error(x) -> Error(x)
     
     //THIS IS FOR PARSING ONLY
-    let IMatch (state: DataPathAndMem<'INS>) (ld: LineData) : Result<Parse<'INS>, string> option =
+    let IMatch (ld: LineData) : Result<Parse<Instr>, ErrInstr> option =
         let pConv fr fe p = pResultInstrMap fr fe p |> Some
         match ld with
-        | Arith.IMatch pa -> pa
-        | Memory.IMatch parsedResult -> parsedResult
+        | Arith.IMatch pa -> pa |> pConv IAR ERRIAR
+        | Memory.IMatch parsedResult -> parsedResult |> pConv IMEM ERRIMEM
         | _ -> None
 
-    ///THIS IS FOR PARSING AND EVALUATING
-    let IMatch (state: DataPathAndMem<'INS>) (ld: LineData) : Result<DataPathAndMem<'INS>, string> option =
+    ///THIS IS FOR EVALUATING
+    let EMatch (state: DataPathAndMem<'INS>) (ld:LineData) : Result<DataPathAndMem<Instr>, ErrInstr> option =
         let pConv fr fe p = pResultInstrMap fr fe p |> Some
         match ld with
-        | Arith.IMatch pa -> 
-            pa
-            |> fun a -> {Arith.pd = (Some a); Arith.st = {MM = state.MM; Fl = state.DP.Fl; Regs = state.DP.Regs}}
-            |> Arith.eval
-            |> FlRegMem2DPAndMem
-            |> Some
-        | Memory.IMatch parsedResult ->
-            parsedResult
+        | Arith.IMatch parsedData -> 
+            parsedData
             |> function
-               | Ok(pRes) -> 
-                    (Memory.execute pRes state.MM {Fl=state.DP.Fl; Regs=state.DP.Regs})
+               | Ok m -> 
+                    Arith.eval m state 
+                    |> function
+                        |Ok x -> Ok x |> Some
+                        |Error e -> Error (ERRIMEM e) |> Some
+               | Error x -> Error (ERRIAR x) |> Some
+        | Memory.IMatch parsedData ->
+            parsedData
+            |> function
+               | Ok parsedData -> 
+                    Memory.execute parsedData state.MM state.DP
                     |> dpMemTuple2DPAndMem
-                    |> Some
-               | Error(x) -> Error(x) |> Some
+                    |> function
+                        |Ok x -> Ok x |> Some
+                        |Error e -> Error (ERRIMEM e) |> Some
+               | Error e -> Error (ERRIMEM e) |> Some
         | _ -> None
+
 
     let parseAndExecuteLine (symtab: SymbolTable option) (loadAddr: WAddr) (asmLine:string) (state:DataPathAndMem<'INS>) =
         /// put parameters into a LineData record
@@ -94,19 +95,23 @@ module CommonTop =
             let pNoLabel =
                 match words with
                 | opc :: operands -> 
-                    printfn "First OPC %s" opc
-                    makeLineData opc operands 
-                    |> IMatch state
+                    let p = makeLineData opc operands
+                    let pp = p.Label |> function |Some x -> x |None -> ""
+                    printfn "LABEL %s, OPCODE %s, OPS %s" pp p.OpCode p.Operands
+                    p
+                    |> IMatch
                 | _ -> None
             match pNoLabel, words with
-            | Some pa, _ -> pa
+            | Some _, _ -> 
+                let opc::operands = words
+                {makeLineData opc operands with Label = None} |> EMatch state
             | None, label :: opc :: operands -> 
-                printfn "Label %s" label
-                match { makeLineData opc operands with Label=Some label} |> IMatch state with
+                printfn "Label %s OPC %s" label opc
+                match { makeLineData opc operands with Label=Some label} |> EMatch state with
                 | None -> 
-                    Error (sprintf "BAD OPC Unimplemented instruction %s" opc)
-                | Some pa -> pa
-            | _ -> Error (sprintf "Unimplemented instruction %A" words)
+                    ERRTOPLEVEL (sprintf "BAD OPC Unimplemented instruction %s" opc) |> Error |> Some
+                | Some pa -> Some pa
+            | _ -> ERRTOPLEVEL (sprintf "Unimplemented instruction %A" words) |> Error |> Some
         asmLine
         |> removeComment
         |> splitIntoWords
